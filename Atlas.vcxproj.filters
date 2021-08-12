@@ -41,5 +41,8 @@
     <ClInclude Include="Source\Graphics\GlyphCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Common\DynArray.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

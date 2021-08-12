@@ -186,6 +186,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Common\DynArray.h" />
     <ClInclude Include="Source\Graphics\GlyphCache.h" />
     <ClInclude Include="Source\Graphics\Renderer.h" />
     <ClInclude Include="Source\Graphics\ShaderBytecode.h" />
