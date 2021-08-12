@@ -1,6 +1,7 @@
 #include "PCH.h"
 #include "Renderer.h"
 
+#include "Graphics/GlyphCache.h"
 #include "Graphics/ShaderBytecode.h"
 
 #define VK_CHECK(x) if((x) != VK_SUCCESS) { 			\
@@ -566,6 +567,8 @@ Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 
 	VkRenderPass render_pass = CreateRenderPass(logical_device, swapchain);
 	VkPipeline pipeline = CreateRasterizationPipeline(instance, logical_device, swapchain, render_pass);
+
+	GlyphCache gc = GlyphCacheInitialize(hwnd);
 
 	return Renderer {
 		.hwnd = hwnd,
