@@ -4,12 +4,6 @@
 #include "Graphics/GlyphCache.h"
 #include "Graphics/ShaderBytecode.h"
 
-#define VK_CHECK(x) if((x) != VK_SUCCESS) { 			\
-	assert(FALSE); 										\
-	printf("Vulkan error: %s:%i", __FILE__, __LINE__); 	\
-}
-
-
 #ifndef NDEBUG
 const char *LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
 const char *INSTANCE_EXTENSIONS[] = {
@@ -25,15 +19,8 @@ const char *INSTANCE_EXTENSIONS[] = {
 };
 #endif
 const char *DEVICE_EXTENSIONS[] = {
-	VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
-#ifndef USE_RASTERIZATION
-	VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-	VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-	VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME
-#endif
+	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME
 };
 
 #ifndef NDEBUG
@@ -420,8 +407,8 @@ VkRenderPass CreateRenderPass(LogicalDevice device, Swapchain swapchain) {
 	return render_pass;
 }
 
-VkPipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device, 
-									   Swapchain swapchain, VkRenderPass render_pass) {
+Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
+									 Swapchain swapchain, VkRenderPass render_pass) {
 	VkPipelineLayoutCreateInfo layout_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
 	};
@@ -548,7 +535,213 @@ VkPipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device
 	VK_CHECK(vkCreateGraphicsPipelines(device.handle, VK_NULL_HANDLE, 1, &graphics_pipeline_info, 
 									   nullptr, &pipeline));
 
-	return pipeline;
+	vkDestroyShaderModule(device.handle, shader_stage_infos[0].module, nullptr);
+	vkDestroyShaderModule(device.handle, shader_stage_infos[1].module, nullptr);
+
+	return Pipeline {
+		.handle = pipeline,
+		.layout = pipeline_layout
+	};
+}
+
+void TransitionGlyphImage(LogicalDevice logical_device, VkCommandPool command_pool, Image image) {
+	VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = command_pool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBuffer command_buffer;
+	VK_CHECK(vkAllocateCommandBuffers(logical_device.handle, &command_buffer_allocate_info, 
+									  &command_buffer));
+
+	VkCommandBufferBeginInfo command_buffer_begin_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+	};
+	VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
+
+	VkImageMemoryBarrier memory_barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_GENERAL,
+		.image = image.handle,
+		.subresourceRange = {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1
+		}
+	};
+
+	vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+						 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr,
+						 0, nullptr, 1, &memory_barrier);
+
+	VK_CHECK(vkEndCommandBuffer(command_buffer));
+
+	VkSubmitInfo submit_info = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &command_buffer
+	};
+
+	VkFenceCreateInfo fence_info = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+	};
+	VkFence fence;
+	VK_CHECK(vkCreateFence(logical_device.handle, &fence_info, nullptr, &fence));
+
+	VK_CHECK(vkQueueSubmit(logical_device.graphics_queue , 1, &submit_info, fence));
+	VK_CHECK(vkWaitForFences(logical_device.handle, 1, &fence, VK_TRUE, UINT64_MAX));
+
+	vkFreeCommandBuffers(logical_device.handle, command_pool, 1, &command_buffer);
+	vkDestroyFence(logical_device.handle, fence, nullptr);
+}
+
+GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevice physical_device,
+									LogicalDevice logical_device, VkCommandPool command_pool) {
+	VkDescriptorPoolSize pool_sizes[2] = {
+		{
+			.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.descriptorCount = 1
+		},
+		{
+			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1
+		}
+	};
+	VkDescriptorPoolCreateInfo descriptor_pool_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.maxSets = 1,
+		.poolSizeCount = _countof(pool_sizes),
+		.pPoolSizes = pool_sizes
+	};
+	VkDescriptorPool descriptor_pool;
+	VK_CHECK(vkCreateDescriptorPool(logical_device.handle, &descriptor_pool_info,
+									nullptr, &descriptor_pool));
+
+	VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[2] = {
+		{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
+		},
+		{
+			.binding = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
+		}
+	};
+	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.bindingCount = _countof(descriptor_set_layout_bindings),
+		.pBindings = descriptor_set_layout_bindings
+	};
+	VkDescriptorSetLayout descriptor_set_layout;
+	VK_CHECK(vkCreateDescriptorSetLayout(logical_device.handle, &descriptor_set_layout_info,
+										 nullptr, &descriptor_set_layout));
+
+	VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.descriptorPool = descriptor_pool,
+		.descriptorSetCount = 1,
+		.pSetLayouts = &descriptor_set_layout
+	};
+	VkDescriptorSet descriptor_set;
+	VK_CHECK(vkAllocateDescriptorSets(logical_device.handle, &descriptor_set_allocate_info, &descriptor_set));
+
+	Image glyph_atlas = VulkanAllocator::CreateImage2D(logical_device.handle, physical_device.memory_properties,
+													   1024, 1024, VK_FORMAT_R32_SFLOAT);
+	TransitionGlyphImage(logical_device, command_pool, glyph_atlas);
+
+	GlyphCache glyph_cache = GlyphCacheInitialize(hwnd);
+	GlyphInformation glyph_information {};
+	for(int i = 0; i < glyph_cache.glyphs['a'].size(); ++i) {
+		glyph_information.lines[i] = glyph_cache.glyphs['a'][i];
+	}
+
+	MappedBuffer glyph_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
+																	physical_device.memory_properties,
+																	sizeof(GlyphInformation),
+																	&glyph_information);
+
+	VkDescriptorImageInfo descriptor_image_info = {
+		.imageView = glyph_atlas.view,
+		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
+	};
+	VkDescriptorBufferInfo descriptor_buffer_info = {
+		.buffer = glyph_buffer.handle,
+		.range = VK_WHOLE_SIZE
+	};
+	VkWriteDescriptorSet write_descriptor_sets[2] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptor_set,
+			.dstBinding = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.pImageInfo = &descriptor_image_info
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptor_set,
+			.dstBinding = 1,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.pBufferInfo = &descriptor_buffer_info
+		}
+	};
+
+	vkUpdateDescriptorSets(logical_device.handle, _countof(write_descriptor_sets), 
+						   write_descriptor_sets, 0, nullptr);
+
+	VkPipelineLayoutCreateInfo layout_info = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 1,
+		.pSetLayouts = &descriptor_set_layout
+	};
+	VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
+	VK_CHECK(vkCreatePipelineLayout(logical_device.handle, &layout_info, nullptr, &pipeline_layout));
+
+	VkPipelineShaderStageCreateInfo shader_stage_info = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_COMPUTE_BIT,
+		.pName = "main"
+	};
+
+	VkShaderModuleCreateInfo shader_module_info = {
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.codeSize = _countof(COMPUTE_SHADER_BYTECODE) * sizeof(uint32_t),
+		.pCode = COMPUTE_SHADER_BYTECODE
+	};
+	vkCreateShaderModule(logical_device.handle, &shader_module_info, nullptr, &shader_stage_info.module);
+
+	VkComputePipelineCreateInfo compute_pipeline_info {
+		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+		.stage = shader_stage_info,
+		.layout = pipeline_layout,
+	};
+	VkPipeline pipeline;
+	vkCreateComputePipelines(logical_device.handle, nullptr, 1, &compute_pipeline_info, nullptr, &pipeline);
+
+	vkDestroyShaderModule(logical_device.handle, shader_stage_info.module, nullptr);
+
+	return GlyphResources {
+		.descriptor_pool = descriptor_pool,
+		.descriptor_set_layout = descriptor_set_layout,
+		.descriptor_set = descriptor_set,
+		.glyph_atlas = glyph_atlas,
+		.glyph_buffer = glyph_buffer,
+		.glyph_generation_pipeline = Pipeline {
+			.handle = pipeline,
+			.layout = pipeline_layout
+		}
+	};
 }
 
 Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
@@ -566,9 +759,11 @@ Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 	FrameResources frame_resources = CreateFrameResources(logical_device, command_pool, swapchain);
 
 	VkRenderPass render_pass = CreateRenderPass(logical_device, swapchain);
-	VkPipeline pipeline = CreateRasterizationPipeline(instance, logical_device, swapchain, render_pass);
+	Pipeline graphics_pipeline = CreateRasterizationPipeline(instance, logical_device, swapchain, 
+															 render_pass);
 
-	GlyphCache gc = GlyphCacheInitialize(hwnd);
+	GlyphResources glyph_resources = CreateGlyphResources(hwnd, instance, physical_device, logical_device,
+														  command_pool);
 
 	return Renderer {
 		.hwnd = hwnd,
@@ -580,7 +775,8 @@ Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 		.command_pool = command_pool,
 		.frame_resources = frame_resources,
 		.render_pass = render_pass,
-		.pipeline = pipeline,
+		.graphics_pipeline = graphics_pipeline,
+		.glyph_resources = glyph_resources,
 #ifndef NDEBUG
 		.debug_messenger = debug_messenger
 #endif
@@ -652,7 +848,19 @@ void RendererUpdate(Renderer *renderer) {
 	};
 	vkCmdBeginRenderPass(frame_resources->command_buffers[resource_index], 
 						 &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
 	vkCmdEndRenderPass(frame_resources->command_buffers[resource_index]);
+
+	vkCmdBindPipeline(frame_resources->command_buffers[resource_index],
+					  VK_PIPELINE_BIND_POINT_COMPUTE, 
+					  renderer->glyph_resources.glyph_generation_pipeline.handle);
+
+	vkCmdBindDescriptorSets(frame_resources->command_buffers[resource_index],
+							VK_PIPELINE_BIND_POINT_COMPUTE,
+							renderer->glyph_resources.glyph_generation_pipeline.layout,
+							0, 1, &renderer->glyph_resources.descriptor_set, 0, nullptr);
+
+	vkCmdDispatch(frame_resources->command_buffers[resource_index], 1024, 1024, 1);
 
 	VK_CHECK(vkEndCommandBuffer(frame_resources->command_buffers[resource_index]));
 

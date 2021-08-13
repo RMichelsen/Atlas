@@ -177,6 +177,7 @@
   <ItemGroup>
     <ClCompile Include="Source\Graphics\GlyphCache.cpp" />
     <ClCompile Include="Source\Graphics\Renderer.cpp" />
+    <ClCompile Include="Source\Graphics\VulkanAllocator.cpp" />
     <ClCompile Include="Source\Main.cpp" />
     <ClCompile Include="Source\PCH.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -187,9 +188,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Common\DynArray.h" />
+    <ClInclude Include="Source\Common\GlyphPrimitives.h" />
     <ClInclude Include="Source\Graphics\GlyphCache.h" />
     <ClInclude Include="Source\Graphics\Renderer.h" />
     <ClInclude Include="Source\Graphics\ShaderBytecode.h" />
+    <ClInclude Include="Source\Graphics\VulkanAllocator.h" />
     <ClInclude Include="Source\PCH.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

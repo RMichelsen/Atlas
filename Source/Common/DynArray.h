@@ -8,7 +8,7 @@ constexpr size_t MEGABYTES(size_t n) {
 	return n * 1024 * 1024;
 }
 
-// A heap-allocated vector, reserves 1GB of virtual memory,
+// A heap-allocated dynamic array, reserves 1GB of virtual memory,
 // commits as necessary. Ensures no reallocations.
 constexpr size_t VEC_MAX_SIZE = MEGABYTES(1024);
 template<typename T>
@@ -17,16 +17,8 @@ struct DynArray {
 	T *data_end;
 	T *alloc_end;
 
-	DynArray() {
-		data_begin = reinterpret_cast<T *>(VirtualAlloc(nullptr, VEC_MAX_SIZE, MEM_RESERVE, PAGE_NOACCESS));
-		data_end = data_begin;
-		VirtualAlloc(data_begin, PAGE_SIZE * 4, MEM_COMMIT, PAGE_READWRITE);
-		alloc_end = reinterpret_cast<T *>(reinterpret_cast<uint8_t *>(data_begin) + PAGE_SIZE * 4);
-	}
-
-	~DynArray() {
-		VirtualFree(data_begin, 0, MEM_RELEASE);
-	}
+	DynArray() = default;
+	~DynArray() = default;
 
 	inline T operator[](size_t i) const {
 		return *(data_begin + i);
@@ -102,3 +94,18 @@ struct DynArray {
 		return data_end;
 	}
 };
+
+template<typename T>
+DynArray<T> DynArrayInitialize() {
+	DynArray<T> dyn_array {};
+	dyn_array.data_begin = reinterpret_cast<T *>(VirtualAlloc(nullptr, VEC_MAX_SIZE, MEM_RESERVE, PAGE_NOACCESS));
+	dyn_array.data_end = dyn_array.data_begin;
+	VirtualAlloc(dyn_array.data_begin, PAGE_SIZE * 4, MEM_COMMIT, PAGE_READWRITE);
+	dyn_array.alloc_end = reinterpret_cast<T *>(reinterpret_cast<uint8_t *>(dyn_array.data_begin) + PAGE_SIZE * 4);
+	return dyn_array; 
+}
+
+template<typename T>
+void DynArrayDestroy(DynArray<T> dyn_array) {
+	VirtualFree(dyn_array.data_begin, 0, MEM_RELEASE);
+}

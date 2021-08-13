@@ -1,56 +1,6 @@
 #include "PCH.h"
 #include "GlyphCache.h"
 
-#include "Common/DynArray.h"
-
-struct Point {
-	float x;
-	float y;
-};
-
-Point operator-(Point a, Point b) {
-	return Point {
-		.x = a.x - b.x,
-		.y = a.y - b.y,
-	};
-}
-Point operator+(Point a, Point b) {
-	return Point {
-		.x = a.x + b.x,
-		.y = a.y + b.y,
-	};
-}
-Point operator*(Point a, float s) {
-	return Point {
-		.x = a.x * s,
-		.y = a.y * s
-	};
-}
-Point operator*(float s, Point a) {
-	return a * s;
-}
-float operator*(Point a, Point b) {
-	return a.x * b.x + a.y * b.y;
-}
-Point operator/(Point a, float s) {
-	return Point {
-		.x = a.x / s,
-		.y = a.y / s
-	};
-}
-
-Point FixedToFloat(POINTFX *p) {
-	return Point {
-		.x = (float)p->x.value + ((float)p->x.fract / 65536.0f),
-		.y = (float)p->y.value + ((float)p->y.fract / 65536.0f)
-	};
-}
-
-struct Line {
-	Point a;
-	Point b;
-};
-
 // https://members.loria.fr/samuel.hornus/quadratic-arc-length.html
 float GetBezierArcLength(Point a, Point b, Point c) {
 	Point B = b - a;
@@ -147,6 +97,26 @@ void ParsePolygon(TTPOLYGONHEADER *polygon_header, DynArray<Line> *lines) {
 	AddStraightLine(p1, start_point, lines);
 }
 
+void ProcessGlyph(GlyphCache *glyph_cache, HDC device_context, unsigned char c) {
+	constexpr static MAT2 identity = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
+	GLYPHMETRICS glyph_metrics {};
+	DWORD buffer_size = GetGlyphOutline(device_context, c, GGO_NATIVE | GGO_UNHINTED,
+										&glyph_metrics, 0, nullptr, &identity);
+
+	void *data = malloc(buffer_size);
+	GetGlyphOutline(device_context, c, GGO_NATIVE | GGO_UNHINTED,
+					&glyph_metrics, buffer_size, data, &identity);
+	
+	uint32_t bytes_processed = 0;
+	while(bytes_processed < buffer_size) {
+		TTPOLYGONHEADER *polygon_header = (TTPOLYGONHEADER *)((uint8_t *)data + bytes_processed);
+		ParsePolygon(polygon_header, &glyph_cache->glyphs[c]);
+		bytes_processed += polygon_header->cb;
+	}
+
+	free(data);
+}
+
 GlyphCache GlyphCacheInitialize(HWND hwnd) {
 	HDC device_context = GetDC(hwnd);
 	HFONT font = CreateFont(128, 0, 0, 0, FW_NORMAL, false, false, false,
@@ -154,23 +124,12 @@ GlyphCache GlyphCacheInitialize(HWND hwnd) {
 							DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Consolas"));
 	SelectObject(device_context, font);
 
-	GLYPHMETRICS glyph_metrics {};
-	MAT2 transformation_matrix = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
-	DWORD buffer_size = GetGlyphOutline(device_context, 'g', GGO_NATIVE | GGO_UNHINTED, 
-										&glyph_metrics, 0, nullptr, &transformation_matrix);
-
-	void *data = malloc(buffer_size);
-	GetGlyphOutline(device_context, 'g', GGO_NATIVE | GGO_UNHINTED,
-					&glyph_metrics, buffer_size, data, &transformation_matrix);
-
-	DynArray<Line> lines;
-	uint32_t bytes_processed = 0;
-	while(bytes_processed < buffer_size) {
-		TTPOLYGONHEADER *polygon_header = (TTPOLYGONHEADER *)((uint8_t *)data + bytes_processed);
-		ParsePolygon(polygon_header, &lines);
-		bytes_processed += polygon_header->cb;
+	GlyphCache glyph_cache = {};
+	for(int i = 32; i < 256; ++i) {
+		glyph_cache.glyphs[i] = DynArrayInitialize<Line>();
+		ProcessGlyph(&glyph_cache, device_context, (unsigned char)i);
 	}
 
 	DeleteObject(font);
-	return {};
+	return glyph_cache;
 }

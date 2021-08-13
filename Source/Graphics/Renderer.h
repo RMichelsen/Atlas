@@ -1,5 +1,8 @@
 #pragma once
 
+#include "Common/GlyphPrimitives.h"
+#include "Graphics/VulkanAllocator.h"
+
 #define MAX_FRAMES_IN_FLIGHT 3
 
 struct PhysicalDevice {
@@ -34,6 +37,27 @@ struct FrameResources {
 	VkFence fences[MAX_FRAMES_IN_FLIGHT];
 };
 
+struct Pipeline {
+	VkPipeline handle;
+	VkPipelineLayout layout;
+};
+
+struct GlyphInformation {
+	Line lines[1024];
+	int scanline_start_indices[128];
+};
+
+struct GlyphResources {
+	VkDescriptorPool descriptor_pool;
+	VkDescriptorSetLayout descriptor_set_layout;
+	VkDescriptorSet descriptor_set;
+
+	Image glyph_atlas;
+	MappedBuffer glyph_buffer;
+
+	Pipeline glyph_generation_pipeline;
+};
+
 struct Renderer {
 	HWND hwnd;
 
@@ -48,7 +72,9 @@ struct Renderer {
 	FrameResources frame_resources;
 
 	VkRenderPass render_pass;
-	VkPipeline pipeline;
+	Pipeline graphics_pipeline;
+	
+	GlyphResources glyph_resources;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT debug_messenger;
