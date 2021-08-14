@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Wingdi.h>
+constexpr static uint64_t MAX_LINES = 4096;
 
 struct Point {
 	float x;
@@ -49,4 +49,12 @@ struct Line {
 	Point a;
 	Point b;
 };
+
+struct GlyphInformation {
+	Line lines[MAX_LINES];
+	int scanline_start_indices[128];
+};
+
+void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer command_buffer,
+					 GlyphInformation *glyph_information_gpu_mapped);
 

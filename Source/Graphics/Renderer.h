@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Common/GlyphPrimitives.h"
 #include "Graphics/VulkanAllocator.h"
 
 #define MAX_FRAMES_IN_FLIGHT 3
@@ -40,11 +39,6 @@ struct FrameResources {
 struct Pipeline {
 	VkPipeline handle;
 	VkPipelineLayout layout;
-};
-
-struct GlyphInformation {
-	Line lines[1024];
-	int scanline_start_indices[128];
 };
 
 struct GlyphResources {

@@ -98,8 +98,8 @@ Image CreateImage2D(VkDevice device, VkPhysicalDeviceMemoryProperties memory_pro
 	};
 }
 
-MappedBuffer CreateMappedBuffer(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
-								uint64_t size, void *data) {
+MappedBuffer CreateMappedBuffer(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties, 
+								uint64_t size) {
 	VkBufferCreateInfo buffer_info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = size,

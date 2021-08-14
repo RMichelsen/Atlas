@@ -1,7 +1,7 @@
 #include "PCH.h"
 #include "Renderer.h"
 
-#include "Graphics/GlyphCache.h"
+#include "Graphics/GlyphRasterizer.h"
 #include "Graphics/ShaderBytecode.h"
 
 #ifndef NDEBUG
@@ -544,7 +544,7 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
 	};
 }
 
-void TransitionGlyphImage(LogicalDevice logical_device, VkCommandPool command_pool, Image image) {
+VkCommandBuffer StartOneTimeCommandBuffer(LogicalDevice logical_device, VkCommandPool command_pool) {
 	VkCommandBufferAllocateInfo command_buffer_allocate_info = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = command_pool,
@@ -561,7 +561,10 @@ void TransitionGlyphImage(LogicalDevice logical_device, VkCommandPool command_po
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 	};
 	VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
+	return command_buffer;
+}
 
+void TransitionGlyphImage(LogicalDevice logical_device, VkCommandBuffer command_buffer, Image image) {
 	VkImageMemoryBarrier memory_barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 		.srcAccessMask = 0,
@@ -580,6 +583,10 @@ void TransitionGlyphImage(LogicalDevice logical_device, VkCommandPool command_po
 						 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr,
 						 0, nullptr, 1, &memory_barrier);
 
+}
+
+void EndOneTimeCommandBuffer(LogicalDevice logical_device, VkCommandBuffer command_buffer,
+							 VkCommandPool command_pool) {
 	VK_CHECK(vkEndCommandBuffer(command_buffer));
 
 	VkSubmitInfo submit_info = {
@@ -594,7 +601,7 @@ void TransitionGlyphImage(LogicalDevice logical_device, VkCommandPool command_po
 	VkFence fence;
 	VK_CHECK(vkCreateFence(logical_device.handle, &fence_info, nullptr, &fence));
 
-	VK_CHECK(vkQueueSubmit(logical_device.graphics_queue , 1, &submit_info, fence));
+	VK_CHECK(vkQueueSubmit(logical_device.graphics_queue, 1, &submit_info, fence));
 	VK_CHECK(vkWaitForFences(logical_device.handle, 1, &fence, VK_TRUE, UINT64_MAX));
 
 	vkFreeCommandBuffers(logical_device.handle, command_pool, 1, &command_buffer);
@@ -603,7 +610,7 @@ void TransitionGlyphImage(LogicalDevice logical_device, VkCommandPool command_po
 
 GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevice physical_device,
 									LogicalDevice logical_device, VkCommandPool command_pool) {
-	VkDescriptorPoolSize pool_sizes[2] = {
+	VkDescriptorPoolSize pool_sizes[] = {
 		{
 			.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
 			.descriptorCount = 1
@@ -657,18 +664,10 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 
 	Image glyph_atlas = VulkanAllocator::CreateImage2D(logical_device.handle, physical_device.memory_properties,
 													   1024, 1024, VK_FORMAT_R32_SFLOAT);
-	TransitionGlyphImage(logical_device, command_pool, glyph_atlas);
-
-	GlyphCache glyph_cache = GlyphCacheInitialize(hwnd);
-	GlyphInformation glyph_information {};
-	for(int i = 0; i < glyph_cache.glyphs['a'].size(); ++i) {
-		glyph_information.lines[i] = glyph_cache.glyphs['a'][i];
-	}
 
 	MappedBuffer glyph_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
 																	physical_device.memory_properties,
-																	sizeof(GlyphInformation),
-																	&glyph_information);
+																	sizeof(GlyphInformation) * 256);
 
 	VkDescriptorImageInfo descriptor_image_info = {
 		.imageView = glyph_atlas.view,
@@ -678,7 +677,7 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 		.buffer = glyph_buffer.handle,
 		.range = VK_WHOLE_SIZE
 	};
-	VkWriteDescriptorSet write_descriptor_sets[2] = {
+	VkWriteDescriptorSet write_descriptor_sets[] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.dstSet = descriptor_set,
@@ -730,6 +729,17 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	vkCreateComputePipelines(logical_device.handle, nullptr, 1, &compute_pipeline_info, nullptr, &pipeline);
 
 	vkDestroyShaderModule(logical_device.handle, shader_stage_info.module, nullptr);
+
+	VkCommandBuffer command_buffer = StartOneTimeCommandBuffer(logical_device, command_pool);
+
+	TransitionGlyphImage(logical_device, command_buffer, glyph_atlas);
+
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
+							0, 1, &descriptor_set, 0, nullptr);
+	RasterizeGlyphs(hwnd, L"Consolas", command_buffer, (GlyphInformation *)glyph_buffer.data);
+
+	EndOneTimeCommandBuffer(logical_device, command_buffer, command_pool);
 
 	return GlyphResources {
 		.descriptor_pool = descriptor_pool,
@@ -850,17 +860,6 @@ void RendererUpdate(Renderer *renderer) {
 						 &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
 	vkCmdEndRenderPass(frame_resources->command_buffers[resource_index]);
-
-	vkCmdBindPipeline(frame_resources->command_buffers[resource_index],
-					  VK_PIPELINE_BIND_POINT_COMPUTE, 
-					  renderer->glyph_resources.glyph_generation_pipeline.handle);
-
-	vkCmdBindDescriptorSets(frame_resources->command_buffers[resource_index],
-							VK_PIPELINE_BIND_POINT_COMPUTE,
-							renderer->glyph_resources.glyph_generation_pipeline.layout,
-							0, 1, &renderer->glyph_resources.descriptor_set, 0, nullptr);
-
-	vkCmdDispatch(frame_resources->command_buffers[resource_index], 1024, 1024, 1);
 
 	VK_CHECK(vkEndCommandBuffer(frame_resources->command_buffers[resource_index]));
 
