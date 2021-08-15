@@ -77,6 +77,6 @@ struct Renderer {
 
 Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd);
 void RendererResize(Renderer *renderer);
-void RendererUpdate(Renderer *renderer);
+void RendererUpdate(HWND hwnd, Renderer *renderer);
 void RendererDestroy(Renderer *renderer);
 

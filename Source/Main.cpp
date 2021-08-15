@@ -69,7 +69,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 			continue;
 		}
 		else {
-			RendererUpdate(&renderer);
+			RendererUpdate(hwnd, &renderer);
 		}
 	}
 

@@ -667,7 +667,7 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 
 	MappedBuffer glyph_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
 																	physical_device.memory_properties,
-																	sizeof(GlyphInformation) * 256);
+																	sizeof(GlyphInformation));
 
 	VkDescriptorImageInfo descriptor_image_info = {
 		.imageView = glyph_atlas.view,
@@ -699,10 +699,17 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	vkUpdateDescriptorSets(logical_device.handle, _countof(write_descriptor_sets), 
 						   write_descriptor_sets, 0, nullptr);
 
+	VkPushConstantRange push_constant_range = {
+		.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+		.offset = 0,
+		.size = sizeof(GlyphPushConstants)
+	};
 	VkPipelineLayoutCreateInfo layout_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
-		.pSetLayouts = &descriptor_set_layout
+		.pSetLayouts = &descriptor_set_layout,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &push_constant_range
 	};
 	VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
 	VK_CHECK(vkCreatePipelineLayout(logical_device.handle, &layout_info, nullptr, &pipeline_layout));
@@ -734,10 +741,10 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 
 	TransitionGlyphImage(logical_device, command_buffer, glyph_atlas);
 
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
-							0, 1, &descriptor_set, 0, nullptr);
-	RasterizeGlyphs(hwnd, L"Consolas", command_buffer, (GlyphInformation *)glyph_buffer.data);
+	//vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+	//vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
+	//						0, 1, &descriptor_set, 0, nullptr);
+	//RasterizeGlyphs(hwnd, L"Consolas", command_buffer, pipeline_layout, (GlyphInformation *)glyph_buffer.data);
 
 	EndOneTimeCommandBuffer(logical_device, command_buffer, command_pool);
 
@@ -798,7 +805,7 @@ void RendererResize(Renderer *renderer) {
 										  renderer->logical_device, &renderer->swapchain);
 }
 
-void RendererUpdate(Renderer *renderer) {
+void RendererUpdate(HWND hwnd, Renderer *renderer) {
 	static uint32_t resource_index = 0;
 	FrameResources *frame_resources = &renderer->frame_resources;
 
@@ -860,6 +867,12 @@ void RendererUpdate(Renderer *renderer) {
 						 &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
 	vkCmdEndRenderPass(frame_resources->command_buffers[resource_index]);
+
+	vkCmdBindPipeline(frame_resources->command_buffers[resource_index], VK_PIPELINE_BIND_POINT_COMPUTE, renderer->glyph_resources.glyph_generation_pipeline.handle);
+	vkCmdBindDescriptorSets(frame_resources->command_buffers[resource_index], VK_PIPELINE_BIND_POINT_COMPUTE, renderer->glyph_resources.glyph_generation_pipeline.layout,
+							0, 1, &renderer->glyph_resources.descriptor_set, 0, nullptr);
+	RasterizeGlyphs(hwnd, L"Consolas", frame_resources->command_buffers[resource_index], renderer->glyph_resources.glyph_generation_pipeline.layout, 
+					(GlyphInformation *)renderer->glyph_resources.glyph_buffer.data);
 
 	VK_CHECK(vkEndCommandBuffer(frame_resources->command_buffers[resource_index]));
 

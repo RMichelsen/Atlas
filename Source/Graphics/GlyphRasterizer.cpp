@@ -4,6 +4,7 @@
 constexpr static MAT2 identity = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
 
 struct GlyphOutline {
+	Point origin;
 	Line *lines;
 	uint32_t num_lines;
 };
@@ -27,36 +28,52 @@ float GetBezierArcLength(Point a, Point b, Point c) {
 
 void AddStraightLine(Point p1, Point p2, Line *lines, uint32_t *offset) {
 	float length = sqrtf((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
-	float step_size = 1.0f / (length / 2.0f);
+	float step_size = 1.0f / (length / 0.5f);
 
 	float t2 = step_size;
-	while(t2 < 1.0f) {
+	while(true) {
 		float t1 = t2 - step_size;
 
 		Point a = p1 * t1 + p2 * (1 - t1);
 		Point b = p1 * t2 + p2 * (1 - t2);
-		
 		assert(*offset < MAX_LINES);
-		lines[(*offset)++] = Line { a, b };
+		lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
+
+		if(t2 + step_size > 1.0f) {
+			a = p1 * t2 + p2 * (1 - t2);
+			b = p1;
+			assert(*offset < MAX_LINES);
+			lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
+			break;
+		}
+
 		t2 += step_size;
 	}
 }
 
 void AddQuadraticSpline(Point p1, Point p2, Point p3, Line *lines, uint32_t *offset) {
 	float length = GetBezierArcLength(p1, p2, p3);
-	float step_size = 1.0f / (length / 2.0f);
+	float step_size = 1.0f / (length / 0.5f);
 
 	float t2 = step_size;
-	while(t2 < 1.0f) {
+	while(true) {
 		float t1 = t2 - step_size;
 
 		Point a = (1 - t1) * ((1 - t1) * p1 + t1 * p2) + t1 * ((1 - t1) * p2 + t1 * p3);
 		Point b = (1 - t2) * ((1 - t2) * p1 + t2 * p2) + t2 * ((1 - t2) * p2 + t2 * p3);
-
 		assert(*offset < MAX_LINES);
-		lines[(*offset)++] = Line { a, b };
+		lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
+
+		if(t2 + step_size > 1.0f) {
+			a = (1 - t2) * ((1 - t2) * p1 + t2 * p2) + t2 * ((1 - t2) * p2 + t2 * p3);
+			b = p3;
+			assert(*offset < MAX_LINES);
+			lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
+			break;
+		}
+
 		t2 += step_size;
-	}
+	};
 }
 
 void ParsePolygon(TTPOLYGONHEADER *polygon_header, Line *lines, uint32_t *offset) {
@@ -104,17 +121,20 @@ void ParsePolygon(TTPOLYGONHEADER *polygon_header, Line *lines, uint32_t *offset
 	AddStraightLine(p1, start_point, lines, offset);
 }
 
-uint32_t GetScratchBufferSize(HDC device_context) {
+uint32_t GetGlyphMaxOutlineBufferSize(HDC device_context) {
 	GLYPHMETRICS glyph_metrics {};
-	uint32_t scratch_buffer_size = 0;
+	uint32_t size_limit = 0;
+	uint32_t max_width = 0;
+	uint32_t max_height = 0;
 	for(int i = 32; i < 256; ++i) {
 		uint32_t size = GetGlyphOutline(device_context, (unsigned char)i, GGO_NATIVE | GGO_UNHINTED,
 									 &glyph_metrics, 0, nullptr, &identity);
-		if(size > scratch_buffer_size) {
-			scratch_buffer_size = size;
+		if(size > size_limit) {
+			size_limit = size;
 		}
 	}
-	return scratch_buffer_size;
+
+	return size_limit;
 }
 
 GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer) {
@@ -136,18 +156,20 @@ GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer) {
 
 	qsort(lines, offset, sizeof(Line), 
 		  [](const void *l1, const void *l2) { 
-			  float ay = (*(Line *)l1).a.y;
-			  float by = (*(Line *)l2).b.y;
-			  return (by > ay) - (by < ay);
+			  float l1y = (*(Line *)l1).a.y;
+			  float l2y = (*(Line *)l2).a.y;
+			  return (l2y > l1y) - (l2y < l1y);
 		  });
 	
 	return GlyphOutline {
+		.origin = Point { (float)glyph_metrics.gmptGlyphOrigin.x, (float)glyph_metrics.gmptGlyphOrigin.y },
 		.lines = lines,
 		.num_lines = offset
 	};
 }
 
 void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer command_buffer,
+					 VkPipelineLayout pipeline_layout, 
 					 GlyphInformation *glyph_information_gpu_mapped) {
 	HDC device_context = GetDC(hwnd);
 	HFONT font = CreateFont(128, 0, 0, 0, FW_NORMAL, false, false, false,
@@ -155,18 +177,42 @@ void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer comman
 							DEFAULT_QUALITY, DEFAULT_PITCH, font_name);
 	SelectObject(device_context, font);
 
-	uint32_t scratch_buffer_size = GetScratchBufferSize(device_context);
-	void *scratch_buffer = malloc(scratch_buffer_size);
+	uint32_t glyph_max_outline_buffer_size = GetGlyphMaxOutlineBufferSize(device_context);
+	void *scratch_buffer = malloc(glyph_max_outline_buffer_size);
 
+	GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, 'g', scratch_buffer);
 
-	for(int i = 32; i < 256; ++i) {
-		GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, (unsigned char)i, scratch_buffer);
-		memcpy(glyph_information_gpu_mapped[i].lines, glyph_outline.lines, glyph_outline.num_lines * sizeof(Line));
+	uint32_t text_metrics_size = GetOutlineTextMetrics(device_context, 0, nullptr);
+	OUTLINETEXTMETRIC *text_metrics = (OUTLINETEXTMETRIC *)malloc(text_metrics_size);
+	GetOutlineTextMetrics(device_context, text_metrics_size, text_metrics);
+	uint32_t glyph_width = text_metrics->otmTextMetrics.tmAveCharWidth;
+	uint32_t glyph_height = text_metrics->otmAscent - text_metrics->otmDescent;
 
-		vkCmdDispatch(command_buffer, 1024, 1024, 1);
-
-		free(glyph_outline.lines);
+	// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
+	for(uint32_t i = 0; i < glyph_outline.num_lines; ++i) {
+		glyph_outline.lines[i].a.y = glyph_height - (glyph_outline.lines[i].a.y - text_metrics->otmDescent);
+		glyph_outline.lines[i].b.y = glyph_height - (glyph_outline.lines[i].b.y - text_metrics->otmDescent);
 	}
+	memcpy(glyph_information_gpu_mapped->lines, glyph_outline.lines, glyph_outline.num_lines * sizeof(Line));
+
+	GlyphPushConstants push_constants {
+		.num_lines = glyph_outline.num_lines,
+		.ascent = text_metrics->otmAscent,
+		.descent = text_metrics->otmDescent
+	};
+
+	vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, 
+					   sizeof(GlyphPushConstants), &push_constants);
+	vkCmdDispatch(command_buffer, glyph_width, glyph_height, 1);
+
+	//for(int i = 32; i < 256; ++i) {
+	//	GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, (unsigned char)i, scratch_buffer);
+	//	memcpy(glyph_information_gpu_mapped[i].lines, glyph_outline.lines, glyph_outline.num_lines * sizeof(Line));
+
+	//	vkCmdDispatch(command_buffer, 1024, 1024, 1);
+
+	//	free(glyph_outline.lines);
+	//}
 
 	DeleteObject(font);
 }

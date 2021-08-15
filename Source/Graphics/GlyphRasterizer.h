@@ -55,6 +55,13 @@ struct GlyphInformation {
 	int scanline_start_indices[128];
 };
 
+struct GlyphPushConstants {
+	uint32_t num_lines;
+	int ascent;
+	int descent;
+};
+
 void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer command_buffer,
+					 VkPipelineLayout pipeline_layout,
 					 GlyphInformation *glyph_information_gpu_mapped);
 
