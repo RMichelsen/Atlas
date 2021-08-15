@@ -188,6 +188,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Common\DynArray.h" />
+    <ClInclude Include="Source\Graphics\RenderTypes.h" />
     <ClInclude Include="Source\Graphics\GlyphRasterizer.h" />
     <ClInclude Include="Source\Graphics\Renderer.h" />
     <ClInclude Include="Source\Graphics\ShaderBytecode.h" />

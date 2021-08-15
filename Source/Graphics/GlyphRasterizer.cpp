@@ -1,7 +1,7 @@
 #include "PCH.h"
 #include "GlyphRasterizer.h"
 
-constexpr static MAT2 identity = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
+#include "Graphics/RenderTypes.h"
 
 struct GlyphOutline {
 	Point origin;
@@ -36,13 +36,13 @@ void AddStraightLine(Point p1, Point p2, Line *lines, uint32_t *offset) {
 
 		Point a = p1 * t1 + p2 * (1 - t1);
 		Point b = p1 * t2 + p2 * (1 - t2);
-		assert(*offset < MAX_LINES);
+		assert(*offset < MAX_LINES_PER_GLYPH);
 		lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
 
 		if(t2 + step_size > 1.0f) {
 			a = p1 * t2 + p2 * (1 - t2);
 			b = p1;
-			assert(*offset < MAX_LINES);
+			assert(*offset < MAX_LINES_PER_GLYPH);
 			lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
 			break;
 		}
@@ -61,13 +61,13 @@ void AddQuadraticSpline(Point p1, Point p2, Point p3, Line *lines, uint32_t *off
 
 		Point a = (1 - t1) * ((1 - t1) * p1 + t1 * p2) + t1 * ((1 - t1) * p2 + t1 * p3);
 		Point b = (1 - t2) * ((1 - t2) * p1 + t2 * p2) + t2 * ((1 - t2) * p2 + t2 * p3);
-		assert(*offset < MAX_LINES);
+		assert(*offset < MAX_LINES_PER_GLYPH);
 		lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
 
 		if(t2 + step_size > 1.0f) {
 			a = (1 - t2) * ((1 - t2) * p1 + t2 * p2) + t2 * ((1 - t2) * p2 + t2 * p3);
 			b = p3;
-			assert(*offset < MAX_LINES);
+			assert(*offset < MAX_LINES_PER_GLYPH);
 			lines[(*offset)++] = a.y > b.y ? Line { a, b } : Line { b, a };
 			break;
 		}
@@ -137,14 +137,12 @@ uint32_t GetGlyphMaxOutlineBufferSize(HDC device_context) {
 	return size_limit;
 }
 
-GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer) {
+GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer, Line *lines) {
 	GLYPHMETRICS glyph_metrics {};
 	uint32_t size = GetGlyphOutline(device_context, c, GGO_NATIVE | GGO_UNHINTED,
 									&glyph_metrics, 0, nullptr, &identity);
 	GetGlyphOutline(device_context, c, GGO_NATIVE | GGO_UNHINTED,
 					&glyph_metrics, size, buffer, &identity);
-
-	Line *lines = (Line *)malloc(MAX_LINES * sizeof(Line));
 
 	uint32_t offset = 0;
 	uint32_t bytes_processed = 0;
@@ -170,7 +168,9 @@ GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer) {
 
 void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer command_buffer,
 					 VkPipelineLayout pipeline_layout, 
-					 GlyphInformation *glyph_information_gpu_mapped) {
+					 Line *glyph_lines_gpu_mapped) {
+	static GlyphPushConstants push_constants[256];
+
 	HDC device_context = GetDC(hwnd);
 	HFONT font = CreateFont(128, 0, 0, 0, FW_NORMAL, false, false, false,
 							ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -180,39 +180,41 @@ void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer comman
 	uint32_t glyph_max_outline_buffer_size = GetGlyphMaxOutlineBufferSize(device_context);
 	void *scratch_buffer = malloc(glyph_max_outline_buffer_size);
 
-	GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, 'g', scratch_buffer);
-
 	uint32_t text_metrics_size = GetOutlineTextMetrics(device_context, 0, nullptr);
 	OUTLINETEXTMETRIC *text_metrics = (OUTLINETEXTMETRIC *)malloc(text_metrics_size);
 	GetOutlineTextMetrics(device_context, text_metrics_size, text_metrics);
 	uint32_t glyph_width = text_metrics->otmTextMetrics.tmAveCharWidth;
 	uint32_t glyph_height = text_metrics->otmAscent - text_metrics->otmDescent;
 
-	// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
-	for(uint32_t i = 0; i < glyph_outline.num_lines; ++i) {
-		glyph_outline.lines[i].a.y = glyph_height - (glyph_outline.lines[i].a.y - text_metrics->otmDescent);
-		glyph_outline.lines[i].b.y = glyph_height - (glyph_outline.lines[i].b.y - text_metrics->otmDescent);
+	uint32_t num_glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_width;
+
+	for(uint32_t c = 0x20; c <= 0x7E; ++c) {
+		uint32_t index = c - 0x20;
+
+		GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, (char)c, scratch_buffer, 
+														 glyph_lines_gpu_mapped + (MAX_LINES_PER_GLYPH * index));
+
+		// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
+		for(uint32_t i = 0; i < glyph_outline.num_lines; ++i) {
+			glyph_outline.lines[i].a.y = glyph_height - (glyph_outline.lines[i].a.y - text_metrics->otmDescent);
+			glyph_outline.lines[i].b.y = glyph_height - (glyph_outline.lines[i].b.y - text_metrics->otmDescent);
+		}
+
+		push_constants[c] = {
+			.offset = {
+				(float)((index % num_glyphs_per_row) * glyph_width),
+				(float)((index / num_glyphs_per_row) * glyph_height)
+			},
+			.ascent = text_metrics->otmAscent,
+			.descent = text_metrics->otmDescent,
+			.num_lines = glyph_outline.num_lines,
+			.glyph_index = index
+		};
+
+		vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, 
+						   sizeof(GlyphPushConstants), &push_constants[c]);
+		vkCmdDispatch(command_buffer, glyph_width, glyph_height, 1);
 	}
-	memcpy(glyph_information_gpu_mapped->lines, glyph_outline.lines, glyph_outline.num_lines * sizeof(Line));
-
-	GlyphPushConstants push_constants {
-		.num_lines = glyph_outline.num_lines,
-		.ascent = text_metrics->otmAscent,
-		.descent = text_metrics->otmDescent
-	};
-
-	vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, 
-					   sizeof(GlyphPushConstants), &push_constants);
-	vkCmdDispatch(command_buffer, glyph_width, glyph_height, 1);
-
-	//for(int i = 32; i < 256; ++i) {
-	//	GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, (unsigned char)i, scratch_buffer);
-	//	memcpy(glyph_information_gpu_mapped[i].lines, glyph_outline.lines, glyph_outline.num_lines * sizeof(Line));
-
-	//	vkCmdDispatch(command_buffer, 1024, 1024, 1);
-
-	//	free(glyph_outline.lines);
-	//}
 
 	DeleteObject(font);
 }

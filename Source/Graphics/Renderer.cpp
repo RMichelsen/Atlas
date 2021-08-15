@@ -2,6 +2,7 @@
 #include "Renderer.h"
 
 #include "Graphics/GlyphRasterizer.h"
+#include "Graphics/RenderTypes.h"
 #include "Graphics/ShaderBytecode.h"
 
 #ifndef NDEBUG
@@ -663,11 +664,11 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	VK_CHECK(vkAllocateDescriptorSets(logical_device.handle, &descriptor_set_allocate_info, &descriptor_set));
 
 	Image glyph_atlas = VulkanAllocator::CreateImage2D(logical_device.handle, physical_device.memory_properties,
-													   1024, 1024, VK_FORMAT_R32_SFLOAT);
+													   GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R32_SFLOAT);
 
 	MappedBuffer glyph_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
 																	physical_device.memory_properties,
-																	sizeof(GlyphInformation));
+																	sizeof(Line) * MAX_LINES_PER_GLYPH * NUM_PRINTABLE_CHARS);
 
 	VkDescriptorImageInfo descriptor_image_info = {
 		.imageView = glyph_atlas.view,
@@ -741,10 +742,10 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 
 	TransitionGlyphImage(logical_device, command_buffer, glyph_atlas);
 
-	//vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-	//vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
-	//						0, 1, &descriptor_set, 0, nullptr);
-	//RasterizeGlyphs(hwnd, L"Consolas", command_buffer, pipeline_layout, (GlyphInformation *)glyph_buffer.data);
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
+							0, 1, &descriptor_set, 0, nullptr);
+	RasterizeGlyphs(hwnd, L"Consolas", command_buffer, pipeline_layout, (Line *)glyph_buffer.data);
 
 	EndOneTimeCommandBuffer(logical_device, command_buffer, command_pool);
 
@@ -867,12 +868,6 @@ void RendererUpdate(HWND hwnd, Renderer *renderer) {
 						 &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
 	vkCmdEndRenderPass(frame_resources->command_buffers[resource_index]);
-
-	vkCmdBindPipeline(frame_resources->command_buffers[resource_index], VK_PIPELINE_BIND_POINT_COMPUTE, renderer->glyph_resources.glyph_generation_pipeline.handle);
-	vkCmdBindDescriptorSets(frame_resources->command_buffers[resource_index], VK_PIPELINE_BIND_POINT_COMPUTE, renderer->glyph_resources.glyph_generation_pipeline.layout,
-							0, 1, &renderer->glyph_resources.descriptor_set, 0, nullptr);
-	RasterizeGlyphs(hwnd, L"Consolas", frame_resources->command_buffers[resource_index], renderer->glyph_resources.glyph_generation_pipeline.layout, 
-					(GlyphInformation *)renderer->glyph_resources.glyph_buffer.data);
 
 	VK_CHECK(vkEndCommandBuffer(frame_resources->command_buffers[resource_index]));
 
