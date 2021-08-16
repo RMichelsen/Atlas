@@ -47,7 +47,8 @@ struct GlyphResources {
 	VkDescriptorSet descriptor_set;
 
 	Image glyph_atlas;
-	MappedBuffer glyph_buffer;
+	MappedBuffer glyph_lines_buffer;
+	MappedBuffer glyph_offsets_buffer;
 
 	Pipeline glyph_generation_pipeline;
 };

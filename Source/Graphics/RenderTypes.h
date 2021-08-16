@@ -58,10 +58,25 @@ struct Line {
 	Point b;
 };
 
+struct GlyphOffset {
+	uint32_t offset;
+	uint32_t num_lines;
+    uint64_t padding;
+};
+
 struct GlyphPushConstants {
-	Point offset;
+	int glyph_width;
+	int glyph_height;
 	int ascent;
 	int descent;
-	uint32_t num_lines;
-	uint32_t glyph_index;
+	uint32_t num_glyphs;
 };
+
+struct TesselatedGlyphs {
+	Line *lines;
+	uint64_t num_lines;
+	GlyphOffset *glyph_offsets;
+	uint64_t num_glyphs;
+	GlyphPushConstants glyph_push_constants;
+};
+

@@ -5,7 +5,6 @@
 
 struct GlyphOutline {
 	Point origin;
-	Line *lines;
 	uint32_t num_lines;
 };
 
@@ -161,16 +160,11 @@ GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer, Line 
 	
 	return GlyphOutline {
 		.origin = Point { (float)glyph_metrics.gmptGlyphOrigin.x, (float)glyph_metrics.gmptGlyphOrigin.y },
-		.lines = lines,
 		.num_lines = offset
 	};
 }
 
-void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer command_buffer,
-					 VkPipelineLayout pipeline_layout, 
-					 Line *glyph_lines_gpu_mapped) {
-	static GlyphPushConstants push_constants[256];
-
+TesselatedGlyphs TesselateGlyphs(HWND hwnd, const wchar_t *font_name) {
 	HDC device_context = GetDC(hwnd);
 	HFONT font = CreateFont(128, 0, 0, 0, FW_NORMAL, false, false, false,
 							ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -186,35 +180,46 @@ void RasterizeGlyphs(HWND hwnd, const wchar_t *font_name, VkCommandBuffer comman
 	uint32_t glyph_width = text_metrics->otmTextMetrics.tmAveCharWidth;
 	uint32_t glyph_height = text_metrics->otmAscent - text_metrics->otmDescent;
 
-	uint32_t num_glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_width;
+	Line *lines = (Line *)malloc(MAX_LINES_PER_GLYPH * NUM_PRINTABLE_CHARS * sizeof(Line));
+	GlyphOffset *glyph_offsets = (GlyphOffset *)malloc(NUM_PRINTABLE_CHARS * sizeof(GlyphOffset));
+	uint32_t line_offset = 0;
 
 	for(uint32_t c = 0x20; c <= 0x7E; ++c) {
 		uint32_t index = c - 0x20;
 
-		GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, (char)c, scratch_buffer, 
-														 glyph_lines_gpu_mapped + (MAX_LINES_PER_GLYPH * index));
+		GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, (char)c, scratch_buffer, lines + line_offset);
 
 		// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
 		for(uint32_t i = 0; i < glyph_outline.num_lines; ++i) {
-			glyph_outline.lines[i].a.y = glyph_height - (glyph_outline.lines[i].a.y - text_metrics->otmDescent);
-			glyph_outline.lines[i].b.y = glyph_height - (glyph_outline.lines[i].b.y - text_metrics->otmDescent);
+			lines[line_offset + i].a.y = glyph_height - (lines[line_offset + i].a.y - text_metrics->otmDescent);
+			lines[line_offset + i].b.y = glyph_height - (lines[line_offset + i].b.y - text_metrics->otmDescent);
 		}
 
-		push_constants[c] = {
-			.offset = {
-				(float)((index % num_glyphs_per_row) * glyph_width),
-				(float)((index / num_glyphs_per_row) * glyph_height)
-			},
-			.ascent = text_metrics->otmAscent,
-			.descent = text_metrics->otmDescent,
-			.num_lines = glyph_outline.num_lines,
-			.glyph_index = index
+		glyph_offsets[index] = GlyphOffset {
+			.offset = line_offset,
+			.num_lines = glyph_outline.num_lines
 		};
 
-		vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, 
-						   sizeof(GlyphPushConstants), &push_constants[c]);
-		vkCmdDispatch(command_buffer, glyph_width, glyph_height, 1);
+		line_offset += glyph_outline.num_lines;
 	}
 
+	GlyphPushConstants glyph_push_constants = {
+		.glyph_width = text_metrics->otmTextMetrics.tmAveCharWidth,
+		.glyph_height = text_metrics->otmAscent - text_metrics->otmDescent,
+		.ascent = text_metrics->otmAscent,
+		.descent = text_metrics->otmDescent,
+		.num_glyphs = NUM_PRINTABLE_CHARS
+	};
+
 	DeleteObject(font);
+	free(text_metrics);
+
+	return TesselatedGlyphs {
+		.lines = lines,
+		.num_lines = line_offset,
+		.glyph_offsets = glyph_offsets,
+		.num_glyphs = NUM_PRINTABLE_CHARS,
+		.glyph_push_constants = glyph_push_constants
+	};
 }
+

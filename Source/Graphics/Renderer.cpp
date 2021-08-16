@@ -618,7 +618,7 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 		},
 		{
 			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = 1
+			.descriptorCount = 2
 		}
 	};
 	VkDescriptorPoolCreateInfo descriptor_pool_info = {
@@ -631,7 +631,7 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	VK_CHECK(vkCreateDescriptorPool(logical_device.handle, &descriptor_pool_info,
 									nullptr, &descriptor_pool));
 
-	VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[2] = {
+	VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -640,6 +640,12 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 		},
 		{
 			.binding = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
+		},
+		{
+			.binding = 2,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
@@ -666,16 +672,28 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	Image glyph_atlas = VulkanAllocator::CreateImage2D(logical_device.handle, physical_device.memory_properties,
 													   GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R32_SFLOAT);
 
-	MappedBuffer glyph_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
-																	physical_device.memory_properties,
-																	sizeof(Line) * MAX_LINES_PER_GLYPH * NUM_PRINTABLE_CHARS);
+	TesselatedGlyphs tesselated_glyphs = TesselateGlyphs(hwnd, L"Consolas");
+	MappedBuffer glyph_lines_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
+																		  physical_device.memory_properties,
+																		  tesselated_glyphs.num_lines * sizeof(Line));
+	memcpy(glyph_lines_buffer.data, tesselated_glyphs.lines, tesselated_glyphs.num_lines * sizeof(Line));
+	free(tesselated_glyphs.lines);
+	MappedBuffer glyph_offsets_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
+																			physical_device.memory_properties,
+																			tesselated_glyphs.num_glyphs * sizeof(GlyphOffset));
+	memcpy(glyph_offsets_buffer.data, tesselated_glyphs.glyph_offsets, tesselated_glyphs.num_glyphs * sizeof(GlyphOffset));
+	free(tesselated_glyphs.glyph_offsets);
 
 	VkDescriptorImageInfo descriptor_image_info = {
 		.imageView = glyph_atlas.view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
-	VkDescriptorBufferInfo descriptor_buffer_info = {
-		.buffer = glyph_buffer.handle,
+	VkDescriptorBufferInfo glyph_lines_descriptor_buffer_info = {
+		.buffer = glyph_lines_buffer.handle,
+		.range = VK_WHOLE_SIZE
+	};
+	VkDescriptorBufferInfo glyph_offsets_descriptor_buffer_info = {
+		.buffer = glyph_offsets_buffer.handle,
 		.range = VK_WHOLE_SIZE
 	};
 	VkWriteDescriptorSet write_descriptor_sets[] = {
@@ -693,7 +711,15 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 			.dstBinding = 1,
 			.descriptorCount = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.pBufferInfo = &descriptor_buffer_info
+			.pBufferInfo = &glyph_lines_descriptor_buffer_info
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptor_set,
+			.dstBinding = 2,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.pBufferInfo = &glyph_offsets_descriptor_buffer_info
 		}
 	};
 
@@ -745,7 +771,10 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
 							0, 1, &descriptor_set, 0, nullptr);
-	RasterizeGlyphs(hwnd, L"Consolas", command_buffer, pipeline_layout, (Line *)glyph_buffer.data);
+
+	vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+					   sizeof(GlyphPushConstants), &tesselated_glyphs.glyph_push_constants);
+	vkCmdDispatch(command_buffer, GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, 1);
 
 	EndOneTimeCommandBuffer(logical_device, command_buffer, command_pool);
 
@@ -754,7 +783,8 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 		.descriptor_set_layout = descriptor_set_layout,
 		.descriptor_set = descriptor_set,
 		.glyph_atlas = glyph_atlas,
-		.glyph_buffer = glyph_buffer,
+		.glyph_lines_buffer = glyph_lines_buffer,
+		.glyph_offsets_buffer = glyph_offsets_buffer,
 		.glyph_generation_pipeline = Pipeline {
 			.handle = pipeline,
 			.layout = pipeline_layout
