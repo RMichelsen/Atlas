@@ -64,58 +64,83 @@ constexpr unsigned int FRAGMENT_SHADER_BYTECODE[] = {
 //#version 460
 //#extension GL_EXT_debug_printf : require
 //
+//#define MAX_LINES_PER_GLYPH 4096;
+//#define NUM_PRINTABLE_CHARS 95;
+//
 //struct Line {
 //	vec2 p1;
 //	vec2 p2;
 //};
 //
+//struct GlyphOffset {
+//	uint offset;
+//	uint num_lines;
+//	vec2 padding;
+//};
+//
 //layout(local_size_x = 1, local_size_y = 1) in;
 //
-//layout(binding = 0, r32f) writeonly uniform image2D glyph_atlas;
-//layout(binding = 1, std140) readonly buffer GlyphInformation {
-//	Line lines[4096];
-//	int scanline_start_indices[128];
-//} gi;
+//layout(binding = 0, r16ui) writeonly uniform uimage2D glyph_atlas;
+//layout(binding = 1, std140) readonly buffer GlyphLines {
+//	Line data[];
+//} glyph_lines;
+//layout(binding = 2, std140) readonly buffer GlyphOffsets {
+//	GlyphOffset data[];
+//} glyph_offsets;
 //
 //layout(push_constant) uniform PushConstants {
-//	uint num_lines;
+//	int glyph_width;
+//	int glyph_height;
 //	int ascent;
 //	int descent;
+//	uint num_glyphs;
 //} pc;
 //
 //void main() {
-//	vec2 p = vec2(gl_GlobalInvocationID.xy) + vec2(0.5f);
+//	int glyph_atlas_size = imageSize(glyph_atlas).x;
+//	uint num_glyphs_per_row = glyph_atlas_size / pc.glyph_width;
+//	uint x = uint(gl_GlobalInvocationID.x / pc.glyph_width);
+//	uint y = uint(gl_GlobalInvocationID.y / pc.glyph_height);
+//	uint char_index = y * num_glyphs_per_row + x;
+//	if(char_index >= pc.num_glyphs) {
+//		return;
+//	}
 //
-//	uint width = gl_NumWorkGroups.x;
-//	uint height = gl_NumWorkGroups.y;
+//	vec2 pixel_top_left = {
+//		gl_GlobalInvocationID.x % pc.glyph_width,
+//		gl_GlobalInvocationID.y % pc.glyph_height
+//	};
 //
-//	int n = 0;
-//	for(int i = 0; i < pc.num_lines; ++i) {
-//		vec2 p1 = gi.lines[i].p1;
-//		vec2 p2 = gi.lines[i].p2;
+//	uint result = 0;
+//	for(int i = 0; i < glyph_offsets.data[char_index].num_lines; ++i) {
+//		Line l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
+//		vec2 p1 = l.p1;
+//		vec2 p2 = l.p2;
 //
-//		if(p.y < p2.y && p.y >= p1.y) {
-//			float dx = p2.x - p1.x;
-//			float dy = p2.y - p1.y;
+//		for(int x = 0; x < 4; ++x) {
+//			for(int y = 0; y < 4; ++y) {
+//				vec2 p = pixel_top_left + vec2(x / 4.0f, y / 4.0f);
 //
-//			if(dy == 0.0f) {
-//				continue;
-//			}
+//				if(p.y < p2.y && p.y >= p1.y) {
+//					float dx = p2.x - p1.x;
+//					float dy = p2.y - p1.y;
 //
-//			float x = (p.y - p1.y) * (dx / dy) + p1.x;
+//					if(dy == 0.0f) {
+//						continue;
+//					}
 //
-//			if(p.x > x) {
-//				n++;
+//					float line_x = (p.y - p1.y) * (dx / dy) + p1.x;
+//
+//					if(p.x > line_x) {
+//						uint mask = 1 << ((3 - x) + y * 4);
+//						result ^= mask;
+//					}
+//				}
 //			}
 //		}
 //	}
 //
-//	if(n % 2 != 0) {
-//		imageStore(glyph_atlas, ivec2(gl_GlobalInvocationID.xy), vec4(1.0f, 0.0f, 0.0f, 1.0f));
-//	}
-//	else {
-//		imageStore(glyph_atlas, ivec2(gl_GlobalInvocationID.xy), vec4(0.0f, 0.0f, 0.0f, 1.0f));
-//	}
+//	imageStore(glyph_atlas, ivec2(gl_GlobalInvocationID.xy), uvec4(result, 0, 0, 0));
 //}
 //glslangValidator.exe --target-env vulkan1.2 -x raster.comp
 constexpr unsigned int COMPUTE_SHADER_BYTECODE[] = {

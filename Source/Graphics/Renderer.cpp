@@ -670,7 +670,7 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	VK_CHECK(vkAllocateDescriptorSets(logical_device.handle, &descriptor_set_allocate_info, &descriptor_set));
 
 	Image glyph_atlas = VulkanAllocator::CreateImage2D(logical_device.handle, physical_device.memory_properties,
-													   GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R32_SFLOAT);
+													   GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
 	TesselatedGlyphs tesselated_glyphs = TesselateGlyphs(hwnd, L"Consolas");
 	MappedBuffer glyph_lines_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
