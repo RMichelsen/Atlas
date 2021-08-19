@@ -409,9 +409,12 @@ VkRenderPass CreateRenderPass(LogicalDevice device, Swapchain swapchain) {
 }
 
 Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
-									 Swapchain swapchain, VkRenderPass render_pass) {
+									 Swapchain swapchain, VkRenderPass render_pass,
+									 DescriptorSet descriptor_set) {
 	VkPipelineLayoutCreateInfo layout_info = {
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 1,
+		.pSetLayouts = &descriptor_set.layout
 	};
 	VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
 	VK_CHECK(vkCreatePipelineLayout(device.handle, &layout_info, nullptr, &pipeline_layout));
@@ -448,21 +451,29 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
 
 	VkVertexInputBindingDescription vertex_input_binding_description = {
 		.binding = 0,
-		.stride = sizeof(float) * 4,
+		.stride = sizeof(Vertex),
 		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 	};
-	VkVertexInputAttributeDescription vertex_input_attribute_description = {
-		.location = 0,
-		.binding = 0,
-		.format = VK_FORMAT_R32G32B32A32_SFLOAT,
-		.offset = 0
+	VkVertexInputAttributeDescription vertex_input_attribute_description[] = {
+		{
+			.location = 0,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32_SFLOAT,
+			.offset = offsetof(Vertex, position)
+		},
+		{
+			.location = 1,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32_SFLOAT,
+			.offset = offsetof(Vertex, uv)
+		}
 	};
 	VkPipelineVertexInputStateCreateInfo vertex_input_state_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.vertexBindingDescriptionCount = 1,
 		.pVertexBindingDescriptions = &vertex_input_binding_description,
-		.vertexAttributeDescriptionCount = 1,
-		.pVertexAttributeDescriptions = &vertex_input_attribute_description
+		.vertexAttributeDescriptionCount = _countof(vertex_input_attribute_description),
+		.pVertexAttributeDescriptions = vertex_input_attribute_description
 	};
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_state_info = {
@@ -490,8 +501,8 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
 	VkPipelineRasterizationStateCreateInfo rasterization_state_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_BACK_BIT,
-		.frontFace = VK_FRONT_FACE_CLOCKWISE,
+		.cullMode = VK_CULL_MODE_NONE,
+		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.lineWidth = 1.0f
 	};
 
@@ -610,7 +621,7 @@ void EndOneTimeCommandBuffer(LogicalDevice logical_device, VkCommandBuffer comma
 }
 
 GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevice physical_device,
-									LogicalDevice logical_device, VkCommandPool command_pool) {
+									LogicalDevice logical_device) {
 	VkDescriptorPoolSize pool_sizes[] = {
 		{
 			.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -675,56 +686,16 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	TesselatedGlyphs tesselated_glyphs = TesselateGlyphs(hwnd, L"Consolas");
 	MappedBuffer glyph_lines_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
 																		  physical_device.memory_properties,
+																		  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 																		  tesselated_glyphs.num_lines * sizeof(Line));
 	memcpy(glyph_lines_buffer.data, tesselated_glyphs.lines, tesselated_glyphs.num_lines * sizeof(Line));
 	free(tesselated_glyphs.lines);
 	MappedBuffer glyph_offsets_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
 																			physical_device.memory_properties,
+																			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 																			tesselated_glyphs.num_glyphs * sizeof(GlyphOffset));
 	memcpy(glyph_offsets_buffer.data, tesselated_glyphs.glyph_offsets, tesselated_glyphs.num_glyphs * sizeof(GlyphOffset));
 	free(tesselated_glyphs.glyph_offsets);
-
-	VkDescriptorImageInfo descriptor_image_info = {
-		.imageView = glyph_atlas.view,
-		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
-	};
-	VkDescriptorBufferInfo glyph_lines_descriptor_buffer_info = {
-		.buffer = glyph_lines_buffer.handle,
-		.range = VK_WHOLE_SIZE
-	};
-	VkDescriptorBufferInfo glyph_offsets_descriptor_buffer_info = {
-		.buffer = glyph_offsets_buffer.handle,
-		.range = VK_WHOLE_SIZE
-	};
-	VkWriteDescriptorSet write_descriptor_sets[] = {
-		{
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = descriptor_set,
-			.dstBinding = 0,
-			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-			.pImageInfo = &descriptor_image_info
-		},
-		{
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = descriptor_set,
-			.dstBinding = 1,
-			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.pBufferInfo = &glyph_lines_descriptor_buffer_info
-		},
-		{
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = descriptor_set,
-			.dstBinding = 2,
-			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.pBufferInfo = &glyph_offsets_descriptor_buffer_info
-		}
-	};
-
-	vkUpdateDescriptorSets(logical_device.handle, _countof(write_descriptor_sets), 
-						   write_descriptor_sets, 0, nullptr);
 
 	VkPushConstantRange push_constant_range = {
 		.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -764,32 +735,160 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 
 	vkDestroyShaderModule(logical_device.handle, shader_stage_info.module, nullptr);
 
-	VkCommandBuffer command_buffer = StartOneTimeCommandBuffer(logical_device, command_pool);
-
-	TransitionGlyphImage(logical_device, command_buffer, glyph_atlas);
-
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
-							0, 1, &descriptor_set, 0, nullptr);
-
-	vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
-					   sizeof(GlyphPushConstants), &tesselated_glyphs.glyph_push_constants);
-	vkCmdDispatch(command_buffer, GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, 1);
-
-	EndOneTimeCommandBuffer(logical_device, command_buffer, command_pool);
-
 	return GlyphResources {
-		.descriptor_pool = descriptor_pool,
-		.descriptor_set_layout = descriptor_set_layout,
-		.descriptor_set = descriptor_set,
+		.descriptor_set {
+			.handle = descriptor_set,
+			.layout = descriptor_set_layout,
+			.pool = descriptor_pool
+		},
+		.glyph_push_constants = tesselated_glyphs.glyph_push_constants,
 		.glyph_atlas = glyph_atlas,
 		.glyph_lines_buffer = glyph_lines_buffer,
 		.glyph_offsets_buffer = glyph_offsets_buffer,
-		.glyph_generation_pipeline = Pipeline {
+		.pipeline = Pipeline {
 			.handle = pipeline,
 			.layout = pipeline_layout
 		}
 	};
+}
+
+VkSampler CreateTextureSampler(LogicalDevice logical_device) {
+	VkSamplerCreateInfo sampler_info = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = VK_FILTER_NEAREST,
+		.minFilter = VK_FILTER_NEAREST,
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+	};
+
+	VkSampler texture_sampler;
+	vkCreateSampler(logical_device.handle, &sampler_info, nullptr, &texture_sampler);
+	return texture_sampler;
+}
+
+DescriptorSet CreateDescriptorSet(LogicalDevice logical_device) {
+	VkDescriptorPoolSize pool_sizes[] = {
+		{
+			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1
+		}
+	};
+	VkDescriptorPoolCreateInfo descriptor_pool_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.maxSets = 1,
+		.poolSizeCount = _countof(pool_sizes),
+		.pPoolSizes = pool_sizes
+	};
+	VkDescriptorPool descriptor_pool;
+	VK_CHECK(vkCreateDescriptorPool(logical_device.handle, &descriptor_pool_info,
+									nullptr, &descriptor_pool));
+
+	VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[] = {
+		{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+		}
+	};
+	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.bindingCount = _countof(descriptor_set_layout_bindings),
+		.pBindings = descriptor_set_layout_bindings
+	};
+	VkDescriptorSetLayout descriptor_set_layout;
+	VK_CHECK(vkCreateDescriptorSetLayout(logical_device.handle, &descriptor_set_layout_info,
+										 nullptr, &descriptor_set_layout));
+
+	VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.descriptorPool = descriptor_pool,
+		.descriptorSetCount = 1,
+		.pSetLayouts = &descriptor_set_layout
+	};
+	VkDescriptorSet descriptor_set;
+	VK_CHECK(vkAllocateDescriptorSets(logical_device.handle, &descriptor_set_allocate_info, &descriptor_set));
+
+	return DescriptorSet {
+		.handle = descriptor_set,
+		.layout = descriptor_set_layout,
+		.pool = descriptor_pool
+	};
+}
+
+void WriteDescriptors(LogicalDevice logical_device, GlyphResources *glyph_resources, 
+					  DescriptorSet descriptor_set, VkSampler texture_sampler) {
+	VkDescriptorImageInfo descriptor_image_info = {
+		.imageView = glyph_resources->glyph_atlas.view,
+		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
+	};
+	VkDescriptorBufferInfo glyph_lines_descriptor_buffer_info = {
+		.buffer = glyph_resources->glyph_lines_buffer.handle,
+		.range = VK_WHOLE_SIZE
+	};
+	VkDescriptorBufferInfo glyph_offsets_descriptor_buffer_info = {
+		.buffer = glyph_resources->glyph_offsets_buffer.handle,
+		.range = VK_WHOLE_SIZE
+	};
+	VkWriteDescriptorSet write_descriptor_sets[] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = glyph_resources->descriptor_set.handle,
+			.dstBinding = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.pImageInfo = &descriptor_image_info
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = glyph_resources->descriptor_set.handle,
+			.dstBinding = 1,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.pBufferInfo = &glyph_lines_descriptor_buffer_info
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = glyph_resources->descriptor_set.handle,
+			.dstBinding = 2,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.pBufferInfo = &glyph_offsets_descriptor_buffer_info
+		}
+	};
+
+	vkUpdateDescriptorSets(logical_device.handle, _countof(write_descriptor_sets),
+						   write_descriptor_sets, 0, nullptr);
+
+
+	descriptor_image_info.sampler = texture_sampler;
+	VkWriteDescriptorSet write_descriptor_set = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = descriptor_set.handle,
+		.dstBinding = 0,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		.pImageInfo = &descriptor_image_info
+	};
+	vkUpdateDescriptorSets(logical_device.handle, 1, &write_descriptor_set, 0, nullptr);
+}
+
+void RasterizeGlyphs(LogicalDevice logical_device, GlyphResources *glyph_resources,
+					 VkCommandPool command_pool) {
+	VkCommandBuffer command_buffer = StartOneTimeCommandBuffer(logical_device, command_pool);
+
+	TransitionGlyphImage(logical_device, command_buffer, glyph_resources->glyph_atlas);
+
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, glyph_resources->pipeline.handle);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, glyph_resources->pipeline.layout,
+							0, 1, &glyph_resources->descriptor_set.handle, 0, nullptr);
+
+	vkCmdPushConstants(command_buffer, glyph_resources->pipeline.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+					   sizeof(GlyphPushConstants), &glyph_resources->glyph_push_constants);
+	vkCmdDispatch(command_buffer, GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, 1);
+
+	EndOneTimeCommandBuffer(logical_device, command_buffer, command_pool);
 }
 
 Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
@@ -806,12 +905,33 @@ Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 	VkCommandPool command_pool = CreateCommandPool(physical_device, logical_device);
 	FrameResources frame_resources = CreateFrameResources(logical_device, command_pool, swapchain);
 
+	VkSampler texture_sampler = CreateTextureSampler(logical_device);
 	VkRenderPass render_pass = CreateRenderPass(logical_device, swapchain);
+	DescriptorSet descriptor_set = CreateDescriptorSet(logical_device);
 	Pipeline graphics_pipeline = CreateRasterizationPipeline(instance, logical_device, swapchain, 
-															 render_pass);
+															 render_pass, descriptor_set);
 
-	GlyphResources glyph_resources = CreateGlyphResources(hwnd, instance, physical_device, logical_device,
-														  command_pool);
+	GlyphResources glyph_resources = CreateGlyphResources(hwnd, instance, physical_device, logical_device);
+
+	WriteDescriptors(logical_device, &glyph_resources, descriptor_set, texture_sampler);
+	RasterizeGlyphs(logical_device, &glyph_resources, command_pool);
+
+	MappedBuffer vertex_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
+																	 physical_device.memory_properties,
+																	 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+																	 sizeof(Vertex) * 6);
+
+	float test_width = (float)glyph_resources.glyph_push_constants.glyph_width / (float)glyph_resources.glyph_push_constants.glyph_height;
+
+	Vertex vertices[] = {
+		{.position = { 0.0f, 0.0f },	   .uv = { 0.0f, 0.0f }},
+		{.position = { 0.0f, 1.0f * 1024.0f },	   .uv = { 0.0f, 1.0f }},
+		{.position = { test_width * 1024.0f, 1.0f * 1024.0f }, .uv = { 1.0f, 1.0f }},
+		{.position = { 0.0f, 0.0f },	   .uv = { 0.0f, 0.0f }},
+		{.position = { test_width * 1024.0f, 1.0f * 1024.0f }, .uv = { 1.0f, 1.0f }},
+		{.position = { test_width * 1024.0f, 0.0f }, .uv = { 1.0f, 0.0f }}
+	};
+	memcpy(vertex_buffer.data, vertices, sizeof(Vertex) * 6);
 
 	return Renderer {
 		.hwnd = hwnd,
@@ -822,9 +942,12 @@ Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 		.swapchain = swapchain,
 		.command_pool = command_pool,
 		.frame_resources = frame_resources,
+		.descriptor_set = descriptor_set,
+		.texture_sampler = texture_sampler,
 		.render_pass = render_pass,
 		.graphics_pipeline = graphics_pipeline,
 		.glyph_resources = glyph_resources,
+		.vertex_buffer = vertex_buffer,
 #ifndef NDEBUG
 		.debug_messenger = debug_messenger
 #endif
@@ -896,6 +1019,15 @@ void RendererUpdate(HWND hwnd, Renderer *renderer) {
 	};
 	vkCmdBeginRenderPass(frame_resources->command_buffers[resource_index], 
 						 &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(frame_resources->command_buffers[resource_index], VK_PIPELINE_BIND_POINT_GRAPHICS, 
+					  renderer->graphics_pipeline.handle);
+	vkCmdBindDescriptorSets(frame_resources->command_buffers[resource_index], VK_PIPELINE_BIND_POINT_GRAPHICS,
+							renderer->graphics_pipeline.layout, 0, 1, &renderer->descriptor_set.handle, 0, nullptr);
+
+	VkDeviceSize offsets = 0;
+	vkCmdBindVertexBuffers(frame_resources->command_buffers[resource_index], 0, 1, &renderer->vertex_buffer.handle, &offsets);
+	vkCmdDraw(frame_resources->command_buffers[resource_index], 6, 1, 0, 0);
 
 	vkCmdEndRenderPass(frame_resources->command_buffers[resource_index]);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Graphics/VulkanAllocator.h"
+#include "Graphics/RenderTypes.h"
 
 #define MAX_FRAMES_IN_FLIGHT 3
 
@@ -36,21 +37,31 @@ struct FrameResources {
 	VkFence fences[MAX_FRAMES_IN_FLIGHT];
 };
 
+struct DescriptorSet {
+	VkDescriptorSet handle;
+	VkDescriptorSetLayout layout;
+	VkDescriptorPool pool;
+};
+
 struct Pipeline {
 	VkPipeline handle;
 	VkPipelineLayout layout;
 };
 
 struct GlyphResources {
-	VkDescriptorPool descriptor_pool;
-	VkDescriptorSetLayout descriptor_set_layout;
-	VkDescriptorSet descriptor_set;
+	DescriptorSet descriptor_set;
 
+	GlyphPushConstants glyph_push_constants;
 	Image glyph_atlas;
 	MappedBuffer glyph_lines_buffer;
 	MappedBuffer glyph_offsets_buffer;
 
-	Pipeline glyph_generation_pipeline;
+	Pipeline pipeline;
+};
+
+struct Vertex {
+	float position[2];
+	float uv[2];
 };
 
 struct Renderer {
@@ -66,10 +77,14 @@ struct Renderer {
 	VkCommandPool command_pool;
 	FrameResources frame_resources;
 
+	DescriptorSet descriptor_set;
+	VkSampler texture_sampler;
 	VkRenderPass render_pass;
 	Pipeline graphics_pipeline;
 	
 	GlyphResources glyph_resources;
+
+	MappedBuffer vertex_buffer;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT debug_messenger;

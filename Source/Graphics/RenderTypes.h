@@ -7,7 +7,7 @@
 constexpr static uint64_t MAX_LINES_PER_GLYPH = 4096;
 constexpr static uint32_t NUM_PRINTABLE_CHARS = 95;
 
-constexpr static uint32_t GLYPH_ATLAS_SIZE = 1024;
+constexpr static uint32_t GLYPH_ATLAS_SIZE = 4096;
 constexpr static MAT2 identity = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
 
 struct Point {

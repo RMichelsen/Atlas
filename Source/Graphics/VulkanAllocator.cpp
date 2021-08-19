@@ -57,7 +57,7 @@ Image CreateImage2D(VkDevice device, VkPhysicalDeviceMemoryProperties memory_pro
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		.usage = VK_IMAGE_USAGE_STORAGE_BIT
+		.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
 	};
 	VkImage image;
 	VK_CHECK(vkCreateImage(device, &image_info, nullptr, &image));
@@ -99,11 +99,11 @@ Image CreateImage2D(VkDevice device, VkPhysicalDeviceMemoryProperties memory_pro
 }
 
 MappedBuffer CreateMappedBuffer(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties, 
-								uint64_t size) {
+								VkBufferUsageFlags usage, uint64_t size) {
 	VkBufferCreateInfo buffer_info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = size,
-		.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		.usage = usage,
 	};
 	VkBuffer buffer;
 	VK_CHECK(vkCreateBuffer(device, &buffer_info, nullptr, &buffer));

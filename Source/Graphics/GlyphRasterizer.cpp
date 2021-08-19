@@ -166,7 +166,7 @@ GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer, Line 
 
 TesselatedGlyphs TesselateGlyphs(HWND hwnd, const wchar_t *font_name) {
 	HDC device_context = GetDC(hwnd);
-	HFONT font = CreateFont(128, 0, 0, 0, FW_NORMAL, false, false, false,
+	HFONT font = CreateFont(64, 0, 0, 0, FW_MEDIUM, false, false, false,
 							ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
 							DEFAULT_QUALITY, DEFAULT_PITCH, font_name);
 	SelectObject(device_context, font);

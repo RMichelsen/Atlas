@@ -16,5 +16,5 @@ namespace VulkanAllocator {
 Image CreateImage2D(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
 					uint32_t width, uint32_t height, VkFormat format);
 MappedBuffer CreateMappedBuffer(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
-								uint64_t size);
+								VkBufferUsageFlags usage, uint64_t size);
 }
