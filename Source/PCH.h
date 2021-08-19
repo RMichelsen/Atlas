@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include <Windows.h>
+#include <dxc/dxcapi.h>
 
 #include <vulkan/vulkan.h>
 

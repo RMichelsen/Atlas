@@ -3,7 +3,8 @@
 
 #include "Graphics/GlyphRasterizer.h"
 #include "Graphics/RenderTypes.h"
-#include "Graphics/ShaderBytecode.h"
+#include "Graphics/ShaderCompiler.h"
+#include "Graphics/ShaderSource.h"
 
 #ifndef NDEBUG
 const char *LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
@@ -263,7 +264,7 @@ Swapchain CreateSwapchain(HWND hwnd, VkSurfaceKHR surface, PhysicalDevice physic
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.surface = surface,
 		.minImageCount = desired_image_count,
-		.imageFormat = VK_FORMAT_B8G8R8A8_SRGB,
+		.imageFormat = VK_FORMAT_B8G8R8A8_UNORM,
 		.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
 		.imageExtent = extent,
 		.imageArrayLayers = 1,
@@ -359,7 +360,7 @@ FrameResources CreateFrameResources(LogicalDevice logical_device, VkCommandPool 
 	return frame_resources;
 }
 
-VkRenderPass CreateRenderPass(LogicalDevice device, Swapchain swapchain) {
+VkRenderPass CreateRenderPass(LogicalDevice logical_device, Swapchain swapchain) {
 	VkAttachmentDescription attachments[] = {
 		{
 			.format = swapchain.format,
@@ -404,11 +405,11 @@ VkRenderPass CreateRenderPass(LogicalDevice device, Swapchain swapchain) {
 	};
 
 	VkRenderPass render_pass;
-	VK_CHECK(vkCreateRenderPass(device.handle, &render_pass_info, nullptr, &render_pass));
+	VK_CHECK(vkCreateRenderPass(logical_device.handle, &render_pass_info, nullptr, &render_pass));
 	return render_pass;
 }
 
-Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
+Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice logical_device,
 									 Swapchain swapchain, VkRenderPass render_pass,
 									 DescriptorSet descriptor_set) {
 	VkPipelineLayoutCreateInfo layout_info = {
@@ -417,37 +418,26 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
 		.pSetLayouts = &descriptor_set.layout
 	};
 	VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
-	VK_CHECK(vkCreatePipelineLayout(device.handle, &layout_info, nullptr, &pipeline_layout));
-
-	VkShaderModule shader_module = VK_NULL_HANDLE;
+	VK_CHECK(vkCreatePipelineLayout(logical_device.handle, &layout_info, nullptr, &pipeline_layout));
 
 	VkPipelineShaderStageCreateInfo shader_stage_infos[] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
-			.pName = "main"
+			.module = ShaderCompiler::CompileShader(logical_device.handle, 
+													SHADER_TYPE_VERTEX, 
+													VERTEX_SHADER_SOURCE),
+			.pName = "VSMain"
 		},
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-			.pName = "main"
+			.module = ShaderCompiler::CompileShader(logical_device.handle, 
+													SHADER_TYPE_FRAGMENT, 
+													FRAGMENT_SHADER_SOURCE),
+			.pName = "PSMain"
 		},
 	};
-
-	VkShaderModuleCreateInfo vertex_shader_module_info = {
-		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = _countof(VERTEX_SHADER_BYTECODE) * sizeof(uint32_t),
-		.pCode = VERTEX_SHADER_BYTECODE
-	};
-	VkShaderModuleCreateInfo fragment_shader_module_info = {
-		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = _countof(FRAGMENT_SHADER_BYTECODE) * sizeof(uint32_t),
-		.pCode = FRAGMENT_SHADER_BYTECODE
-	};
-	vkCreateShaderModule(device.handle, &vertex_shader_module_info, 
-						 nullptr, &shader_stage_infos[0].module);
-	vkCreateShaderModule(device.handle, &fragment_shader_module_info, 
-						 nullptr, &shader_stage_infos[1].module);
 
 	VkVertexInputBindingDescription vertex_input_binding_description = {
 		.binding = 0,
@@ -517,10 +507,22 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
 		.maxDepthBounds = 1.0f
 	};
 
+	//VkPipelineColorBlendAttachmentState color_blend_attachment_state = {
+	//	.blendEnable = VK_TRUE,
+	//	.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+	//	.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+	//	.colorBlendOp = VK_BLEND_OP_ADD,
+	//	.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+	//	.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+	//	.alphaBlendOp = VK_BLEND_OP_ADD,
+	//	.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+	//					  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+	//};
 	VkPipelineColorBlendAttachmentState color_blend_attachment_state = {
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
 						  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
 	};
+
 	VkPipelineColorBlendStateCreateInfo color_blend_state_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 		.attachmentCount = 1,
@@ -544,11 +546,11 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice device,
 	};
 
 	VkPipeline pipeline;
-	VK_CHECK(vkCreateGraphicsPipelines(device.handle, VK_NULL_HANDLE, 1, &graphics_pipeline_info, 
+	VK_CHECK(vkCreateGraphicsPipelines(logical_device.handle, VK_NULL_HANDLE, 1, &graphics_pipeline_info,
 									   nullptr, &pipeline));
 
-	vkDestroyShaderModule(device.handle, shader_stage_infos[0].module, nullptr);
-	vkDestroyShaderModule(device.handle, shader_stage_infos[1].module, nullptr);
+	vkDestroyShaderModule(logical_device.handle, shader_stage_infos[0].module, nullptr);
+	vkDestroyShaderModule(logical_device.handle, shader_stage_infos[1].module, nullptr);
 
 	return Pipeline {
 		.handle = pipeline,
@@ -715,15 +717,9 @@ GlyphResources CreateGlyphResources(HWND hwnd, VkInstance instance, PhysicalDevi
 	VkPipelineShaderStageCreateInfo shader_stage_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_COMPUTE_BIT,
-		.pName = "main"
+		.module = ShaderCompiler::CompileShader(logical_device.handle, SHADER_TYPE_COMPUTE, COMPUTE_SHADER_SOURCE),
+		.pName = "CSMain"
 	};
-
-	VkShaderModuleCreateInfo shader_module_info = {
-		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = _countof(COMPUTE_SHADER_BYTECODE) * sizeof(uint32_t),
-		.pCode = COMPUTE_SHADER_BYTECODE
-	};
-	vkCreateShaderModule(logical_device.handle, &shader_module_info, nullptr, &shader_stage_info.module);
 
 	VkComputePipelineCreateInfo compute_pipeline_info {
 		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
@@ -770,7 +766,11 @@ VkSampler CreateTextureSampler(LogicalDevice logical_device) {
 DescriptorSet CreateDescriptorSet(LogicalDevice logical_device) {
 	VkDescriptorPoolSize pool_sizes[] = {
 		{
-			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.descriptorCount = 1
+		},
+		{
+			.type = VK_DESCRIPTOR_TYPE_SAMPLER,
 			.descriptorCount = 1
 		}
 	};
@@ -787,7 +787,13 @@ DescriptorSet CreateDescriptorSet(LogicalDevice logical_device) {
 	VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[] = {
 		{
 			.binding = 0,
-			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+		},
+		{
+			.binding = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
 		}
@@ -861,17 +867,29 @@ void WriteDescriptors(LogicalDevice logical_device, GlyphResources *glyph_resour
 	vkUpdateDescriptorSets(logical_device.handle, _countof(write_descriptor_sets),
 						   write_descriptor_sets, 0, nullptr);
 
-
-	descriptor_image_info.sampler = texture_sampler;
-	VkWriteDescriptorSet write_descriptor_set = {
-		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet = descriptor_set.handle,
-		.dstBinding = 0,
-		.descriptorCount = 1,
-		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.pImageInfo = &descriptor_image_info
+	VkDescriptorImageInfo descriptor_sampler_info = {
+		.sampler = texture_sampler
 	};
-	vkUpdateDescriptorSets(logical_device.handle, 1, &write_descriptor_set, 0, nullptr);
+	VkWriteDescriptorSet write_descriptor_sets2[] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptor_set.handle,
+			.dstBinding = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.pImageInfo = &descriptor_image_info
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptor_set.handle,
+			.dstBinding = 1,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+			.pImageInfo = &descriptor_sampler_info
+		}
+	};
+	vkUpdateDescriptorSets(logical_device.handle, _countof(write_descriptor_sets2), 
+						   write_descriptor_sets2, 0, nullptr);
 }
 
 void RasterizeGlyphs(LogicalDevice logical_device, GlyphResources *glyph_resources,
@@ -925,11 +943,11 @@ Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 
 	Vertex vertices[] = {
 		{.position = { 0.0f, 0.0f },	   .uv = { 0.0f, 0.0f }},
-		{.position = { 0.0f, 1.0f * 1024.0f },	   .uv = { 0.0f, 1.0f }},
-		{.position = { test_width * 1024.0f, 1.0f * 1024.0f }, .uv = { 1.0f, 1.0f }},
+		{.position = { 0.0f, 1.0f * 30.0f },	   .uv = { 0.0f, 1.0f }},
+		{.position = { test_width * 30.0f, 1.0f * 30.0f }, .uv = { 1.0f, 1.0f }},
 		{.position = { 0.0f, 0.0f },	   .uv = { 0.0f, 0.0f }},
-		{.position = { test_width * 1024.0f, 1.0f * 1024.0f }, .uv = { 1.0f, 1.0f }},
-		{.position = { test_width * 1024.0f, 0.0f }, .uv = { 1.0f, 0.0f }}
+		{.position = { test_width * 30.0f, 1.0f * 30.0f }, .uv = { 1.0f, 1.0f }},
+		{.position = { test_width * 30.0f, 0.0f }, .uv = { 1.0f, 0.0f }}
 	};
 	memcpy(vertex_buffer.data, vertices, sizeof(Vertex) * 6);
 
@@ -1001,7 +1019,7 @@ void RendererUpdate(HWND hwnd, Renderer *renderer) {
 								 nullptr, &framebuffers[resource_index]));
 
 	VkClearValue clear_values[] = {
-		{ .color = { .float32 = { 0.15f, 0.15f, 0.3f, 1.0f } } }
+		{ .color = { .float32 = { 0.117647f, 0.117647f, 0.117647f, 1.0f } } }
 	};
 
 	VkRenderPassBeginInfo render_pass_begin_info = {

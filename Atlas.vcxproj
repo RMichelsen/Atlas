@@ -148,7 +148,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>user32.lib;vulkan-1.lib;gdi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>user32.lib;vulkan-1.lib;gdi32.lib;dxcompiler.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib\</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -170,13 +170,14 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>user32.lib;vulkan-1.lib;gdi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>user32.lib;vulkan-1.lib;gdi32.lib;dxcompiler.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib\</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Source\Graphics\GlyphRasterizer.cpp" />
     <ClCompile Include="Source\Graphics\Renderer.cpp" />
+    <ClCompile Include="Source\Graphics\ShaderCompiler.cpp" />
     <ClCompile Include="Source\Graphics\VulkanAllocator.cpp" />
     <ClCompile Include="Source\Main.cpp" />
     <ClCompile Include="Source\PCH.cpp">
@@ -191,7 +192,8 @@
     <ClInclude Include="Source\Graphics\RenderTypes.h" />
     <ClInclude Include="Source\Graphics\GlyphRasterizer.h" />
     <ClInclude Include="Source\Graphics\Renderer.h" />
-    <ClInclude Include="Source\Graphics\ShaderBytecode.h" />
+    <ClInclude Include="Source\Graphics\ShaderSource.h" />
+    <ClInclude Include="Source\Graphics\ShaderCompiler.h" />
     <ClInclude Include="Source\Graphics\VulkanAllocator.h" />
     <ClInclude Include="Source\PCH.h" />
   </ItemGroup>

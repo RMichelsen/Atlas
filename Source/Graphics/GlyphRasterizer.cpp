@@ -19,9 +19,14 @@ float GetBezierArcLength(Point a, Point b, Point c) {
 	float F_magn = sqrtf(F.x * F.x + F.y * F.y);
 	float A_magn = sqrtf(A.x * A.x + A.y * A.y);
 
+	if(B_magn == 0.0f || F_magn == 0.0f || A_magn == 0.0f) {
+		return 0.0f;
+	}
+
 	float l1 = (F_magn * A_dot_F - B_magn * A_dot_B) / (A_magn * A_magn);
 	float l2 = ((B_magn * B_magn) / A_magn) - ((A_dot_B * A_dot_B) / (A_magn * A_magn * A_magn));
 	float l3 = logf(A_magn * F_magn + A_dot_F) - logf(A_magn * B_magn + A_dot_B);
+
 	return l1 + l2 * l3;
 }
 
@@ -166,7 +171,7 @@ GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer, Line 
 
 TesselatedGlyphs TesselateGlyphs(HWND hwnd, const wchar_t *font_name) {
 	HDC device_context = GetDC(hwnd);
-	HFONT font = CreateFont(64, 0, 0, 0, FW_MEDIUM, false, false, false,
+	HFONT font = CreateFont(-30, 0, 0, 0, FW_REGULAR, false, false, false,
 							ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
 							DEFAULT_QUALITY, DEFAULT_PITCH, font_name);
 	SelectObject(device_context, font);

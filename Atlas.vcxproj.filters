@@ -30,6 +30,9 @@
     <ClCompile Include="Source\Graphics\GlyphRasterizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Graphics\ShaderCompiler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\PCH.h">
@@ -38,7 +41,7 @@
     <ClInclude Include="Source\Graphics\Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Graphics\ShaderBytecode.h">
+    <ClInclude Include="Source\Graphics\ShaderSource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Source\Common\DynArray.h">
@@ -51,6 +54,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Source\Graphics\RenderTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\ShaderCompiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
