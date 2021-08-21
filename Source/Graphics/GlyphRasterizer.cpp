@@ -212,8 +212,7 @@ TesselatedGlyphs TesselateGlyphs(HWND hwnd, const wchar_t *font_name) {
 		.glyph_width = text_metrics->otmTextMetrics.tmAveCharWidth,
 		.glyph_height = text_metrics->otmAscent - text_metrics->otmDescent,
 		.ascent = text_metrics->otmAscent,
-		.descent = text_metrics->otmDescent,
-		.num_glyphs = NUM_PRINTABLE_CHARS
+		.descent = text_metrics->otmDescent
 	};
 
 	DeleteObject(font);

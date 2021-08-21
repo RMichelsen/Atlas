@@ -60,8 +60,12 @@ struct GlyphResources {
 };
 
 struct Vertex {
-	float position[2];
-	float uv[2];
+	uint32_t pos : 3;
+	uint32_t uv : 3;
+	uint32_t glyph_offset_x : 8;
+	uint32_t glyph_offset_y : 5;
+	uint32_t cell_offset_x : 8;
+	uint32_t cell_offset_y : 5;
 };
 
 struct Renderer {

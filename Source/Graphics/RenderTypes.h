@@ -3,11 +3,9 @@
 #include <stdint.h>
 #include <Wingdi.h>
 
-// NOTE: To change these, corresponding shader variables must be changed as well
 constexpr static uint64_t MAX_LINES_PER_GLYPH = 4096;
 constexpr static uint32_t NUM_PRINTABLE_CHARS = 95;
-
-constexpr static uint32_t GLYPH_ATLAS_SIZE = 4096;
+constexpr static uint32_t GLYPH_ATLAS_SIZE = 256;
 constexpr static MAT2 identity = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
 
 struct Point {
@@ -69,7 +67,13 @@ struct GlyphPushConstants {
 	int glyph_height;
 	int ascent;
 	int descent;
-	uint32_t num_glyphs;
+};
+
+struct GraphicsPushConstants {
+	int glyph_width;
+	int glyph_height;
+	float glyph_width_to_height_ratio;
+	float font_size;
 };
 
 struct TesselatedGlyphs {

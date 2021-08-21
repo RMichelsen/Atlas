@@ -4,12 +4,46 @@ constexpr const char *VERTEX_SHADER_SOURCE = R"(
 	struct PSInput {
 		float4 position : SV_POSITION;
 		float2 uv		: TEXCOORD0;
+		nointerpolation uint2 glyph_offset : TEXCOORD1;
 	};
 
-	PSInput VSMain(float2 position : POSITION0, float2 uv : TEXCOORD0) {
+	struct PushConstants {
+		int glyph_width;
+		int glyph_height;
+		float glyph_width_to_height_ratio;
+		float font_size;
+	};
+	[[vk::push_constant]] PushConstants pc;
+
+	static const float2 uv_coords[] = {
+		float2(0.0f, 0.0f),
+		float2(0.0f, 1.0f),
+		float2(1.0f, 1.0f),
+		float2(0.0f, 0.0f),
+		float2(1.0f, 1.0f),
+		float2(1.0f, 0.0f)
+	};
+
+	uint extract_bits(uint value, uint offset, uint size) {
+		uint mask = (1u << size) - 1u;
+		return (value >> offset) & mask;
+	}
+
+	PSInput VSMain(uint vertex : POSITION0) {
+		uint pos = extract_bits(vertex, 0, 3);
+
+		float2 position = float2(
+			(pos == 2 || pos > 3) ? pc.glyph_width : 0.0f,
+			(pos == 1 || pos == 2 || pos == 4) ? pc.glyph_height : 0.0f
+		);
+
+		uint2 cell_offset = uint2(extract_bits(vertex, 19, 8), extract_bits(vertex, 27, 5));
+		float2 pos_offset = float2(pc.glyph_width, pc.glyph_height) * cell_offset;
+
 		PSInput result;
-		result.position = float4(position * float2(2.0f / 2560.0f, 2.0f / 1440.0f) - float2(1.0f, 1.0f), 0.0f, 1.0f); 
-		result.uv = uv;
+		result.position = float4((position + pos_offset) * float2(2.0f / 2560.0f, 2.0f / 1440.0f) - float2(1.0f, 1.0f), 0.0f, 1.0f); 
+		result.uv = uv_coords[extract_bits(vertex, 3, 3)];
+		result.glyph_offset = uint2(extract_bits(vertex, 6, 8), extract_bits(vertex, 14, 5));
 		return result;
 	}
 )";
@@ -21,7 +55,16 @@ constexpr const char *FRAGMENT_SHADER_SOURCE = R"(
 	struct PSInput {
 		float4 position : SV_POSITION;
 		float2 uv		: TEXCOORD0;
+		nointerpolation uint2 glyph_offset : TEXCOORD1;
 	};
+
+	struct PushConstants {
+		int glyph_width;
+		int glyph_height;
+		float glyph_width_to_height_ratio;
+		float font_size;
+	};
+	[[vk::push_constant]] PushConstants pc;
 
 	static const uint R_left_masks[] = {
 		0xCCCC,
@@ -113,7 +156,7 @@ constexpr const char *FRAGMENT_SHADER_SOURCE = R"(
 	}
 
 	float4 PSMain(PSInput input) : SV_TARGET {
-		float2 pixel_pos_left_corner = float2(input.uv * float2(16.0f, 30.0f) + float2(0.0f, 30.0f) * 0.0f + float2(16.0f, 0.0f) * 71.0f);
+		float2 pixel_pos_left_corner = input.uv * float2(pc.glyph_width, pc.glyph_height) + input.glyph_offset * float2(pc.glyph_width, pc.glyph_height);
 		
 		float3 text_color = float3(0.83137f, 0.83137f, 0.83137f);
 		float3 bg_color = float3(0.117647f, 0.117647f, 0.117647f);
@@ -146,8 +189,7 @@ constexpr const char *FRAGMENT_SHADER_SOURCE = R"(
 )";
 
 constexpr const char *COMPUTE_SHADER_SOURCE = R"(
-	#define MAX_LINES_PER_GLYPH 4096;
-	#define NUM_PRINTABLE_CHARS 95;
+	#define NUM_PRINTABLE_CHARS 95
 
 	struct Line {
 		float2 p1;
@@ -165,7 +207,6 @@ constexpr const char *COMPUTE_SHADER_SOURCE = R"(
 		int glyph_height;
 		int ascent;
 		int descent;
-		uint num_glyphs;
 	};
 
 	[[vk::binding(0)]] RWTexture2D<uint> glyph_atlas;
@@ -181,7 +222,7 @@ constexpr const char *COMPUTE_SHADER_SOURCE = R"(
 		uint x = uint(id.x / pc.glyph_width);
 		uint y = uint(id.y / pc.glyph_height);
 		uint char_index = y * num_glyphs_per_row + x;
-		if(char_index >= pc.num_glyphs) {
+		if(char_index >= NUM_PRINTABLE_CHARS) {
 			return;
 		}
 

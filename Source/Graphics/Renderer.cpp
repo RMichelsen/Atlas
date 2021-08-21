@@ -412,10 +412,18 @@ VkRenderPass CreateRenderPass(LogicalDevice logical_device, Swapchain swapchain)
 Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice logical_device,
 									 Swapchain swapchain, VkRenderPass render_pass,
 									 DescriptorSet descriptor_set) {
+
+	VkPushConstantRange push_constant_range = {
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+		.offset = 0,
+		.size = sizeof(GraphicsPushConstants)
+	};
 	VkPipelineLayoutCreateInfo layout_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
-		.pSetLayouts = &descriptor_set.layout
+		.pSetLayouts = &descriptor_set.layout,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &push_constant_range
 	};
 	VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
 	VK_CHECK(vkCreatePipelineLayout(logical_device.handle, &layout_info, nullptr, &pipeline_layout));
@@ -448,14 +456,8 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice logical_
 		{
 			.location = 0,
 			.binding = 0,
-			.format = VK_FORMAT_R32G32_SFLOAT,
-			.offset = offsetof(Vertex, position)
-		},
-		{
-			.location = 1,
-			.binding = 0,
-			.format = VK_FORMAT_R32G32_SFLOAT,
-			.offset = offsetof(Vertex, uv)
+			.format = VK_FORMAT_R32_UINT,
+			.offset = 0
 		}
 	};
 	VkPipelineVertexInputStateCreateInfo vertex_input_state_info = {
@@ -507,17 +509,6 @@ Pipeline CreateRasterizationPipeline(VkInstance instance, LogicalDevice logical_
 		.maxDepthBounds = 1.0f
 	};
 
-	//VkPipelineColorBlendAttachmentState color_blend_attachment_state = {
-	//	.blendEnable = VK_TRUE,
-	//	.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-	//	.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-	//	.colorBlendOp = VK_BLEND_OP_ADD,
-	//	.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-	//	.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-	//	.alphaBlendOp = VK_BLEND_OP_ADD,
-	//	.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-	//					  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
-	//};
 	VkPipelineColorBlendAttachmentState color_blend_attachment_state = {
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
 						  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
@@ -909,6 +900,34 @@ void RasterizeGlyphs(LogicalDevice logical_device, GlyphResources *glyph_resourc
 	EndOneTimeCommandBuffer(logical_device, command_buffer, command_pool);
 }
 
+void AddString(const char *str, MappedBuffer vertex_buffer, GlyphResources *glyph_resources) {
+	uint64_t size = strlen(str) * sizeof(Vertex) * 6;
+	Vertex *vertices = (Vertex *)malloc(size);
+	uint32_t offset = 0;
+
+	uint32_t glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.glyph_width;
+
+	for(int i = 0; i < strlen(str); ++i) {
+		uint32_t glyph_number = (uint32_t)str[i] - 0x20;
+
+		vertices[offset++] = { .pos = 0, .uv = 0, .glyph_offset_x = glyph_number % glyphs_per_row, 
+			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (uint32_t)i, .cell_offset_y = 0 };
+		vertices[offset++] = { .pos = 1, .uv = 1, .glyph_offset_x = glyph_number % glyphs_per_row, 
+			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (uint32_t)i, .cell_offset_y = 0 };
+		vertices[offset++] = { .pos = 2, .uv = 2, .glyph_offset_x = glyph_number % glyphs_per_row, 
+			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (uint32_t)i, .cell_offset_y = 0 };
+		vertices[offset++] = { .pos = 3, .uv = 3, .glyph_offset_x = glyph_number % glyphs_per_row, 
+			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (uint32_t)i, .cell_offset_y = 0 };
+		vertices[offset++] = { .pos = 4, .uv = 4, .glyph_offset_x = glyph_number % glyphs_per_row, 
+			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (uint32_t)i, .cell_offset_y = 0 };
+		vertices[offset++] = { .pos = 5, .uv = 5, .glyph_offset_x = glyph_number % glyphs_per_row, 
+			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (uint32_t)i, .cell_offset_y = 0 };
+	}
+
+	memcpy(vertex_buffer.data, vertices, size);
+	free(vertices);
+}
+
 Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 	VkInstance instance = CreateInstance();
 	VkSurfaceKHR surface = CreateSurface(instance, hinstance, hwnd);
@@ -937,19 +956,10 @@ Renderer RendererInitialize(HINSTANCE hinstance, HWND hwnd) {
 	MappedBuffer vertex_buffer = VulkanAllocator::CreateMappedBuffer(logical_device.handle,
 																	 physical_device.memory_properties,
 																	 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-																	 sizeof(Vertex) * 6);
+																	 sizeof(Vertex) * 1024 * 64);
 
-	float test_width = (float)glyph_resources.glyph_push_constants.glyph_width / (float)glyph_resources.glyph_push_constants.glyph_height;
+	AddString("Well, this is a nice string of words", vertex_buffer, &glyph_resources);
 
-	Vertex vertices[] = {
-		{.position = { 0.0f, 0.0f },	   .uv = { 0.0f, 0.0f }},
-		{.position = { 0.0f, 1.0f * 30.0f },	   .uv = { 0.0f, 1.0f }},
-		{.position = { test_width * 30.0f, 1.0f * 30.0f }, .uv = { 1.0f, 1.0f }},
-		{.position = { 0.0f, 0.0f },	   .uv = { 0.0f, 0.0f }},
-		{.position = { test_width * 30.0f, 1.0f * 30.0f }, .uv = { 1.0f, 1.0f }},
-		{.position = { test_width * 30.0f, 0.0f }, .uv = { 1.0f, 0.0f }}
-	};
-	memcpy(vertex_buffer.data, vertices, sizeof(Vertex) * 6);
 
 	return Renderer {
 		.hwnd = hwnd,
@@ -1045,7 +1055,19 @@ void RendererUpdate(HWND hwnd, Renderer *renderer) {
 
 	VkDeviceSize offsets = 0;
 	vkCmdBindVertexBuffers(frame_resources->command_buffers[resource_index], 0, 1, &renderer->vertex_buffer.handle, &offsets);
-	vkCmdDraw(frame_resources->command_buffers[resource_index], 6, 1, 0, 0);
+
+	GraphicsPushConstants graphics_push_constants {
+		.glyph_width = renderer->glyph_resources.glyph_push_constants.glyph_width,
+		.glyph_height = renderer->glyph_resources.glyph_push_constants.glyph_height,
+		.glyph_width_to_height_ratio = (float)renderer->glyph_resources.glyph_push_constants.glyph_width /
+			renderer->glyph_resources.glyph_push_constants.glyph_height,
+		.font_size = 30.0f
+	};
+	vkCmdPushConstants(frame_resources->command_buffers[resource_index], renderer->graphics_pipeline.layout,
+					   VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 
+					   sizeof(GraphicsPushConstants), &graphics_push_constants);
+
+	vkCmdDraw(frame_resources->command_buffers[resource_index], 6 * strlen("Well, this is a nice string of words"), 1, 0, 0);
 
 	vkCmdEndRenderPass(frame_resources->command_buffers[resource_index]);
 
