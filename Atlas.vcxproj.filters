@@ -15,49 +15,42 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Source\Main.cpp">
+    <ClCompile Include="src\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Source\PCH.cpp">
+    <ClCompile Include="src\rendering\glyph_rasterizer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Graphics\Renderer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Graphics\VulkanAllocator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Graphics\GlyphRasterizer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Graphics\ShaderCompiler.cpp">
+    <ClCompile Include="src\rendering\renderer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Source\PCH.h">
+    <ClInclude Include="src\core\common_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Graphics\Renderer.h">
+    <ClInclude Include="src\rendering\glyph_rasterizer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Graphics\ShaderSource.h">
+    <ClInclude Include="src\rendering\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Common\DynArray.h">
+    <ClInclude Include="src\rendering\vulkan_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Graphics\VulkanAllocator.h">
+    <ClInclude Include="src\rendering\shared_rendering_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Graphics\GlyphRasterizer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Graphics\RenderTypes.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Graphics\ShaderCompiler.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <GLSLShader Include="src\shaders\fragment.frag" />
+    <GLSLShader Include="src\shaders\vertex.vert" />
+    <GLSLShader Include="src\shaders\write_texture_atlas.comp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="misc\glsl.targets" />
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="misc\glsl.xml" />
   </ItemGroup>
 </Project>

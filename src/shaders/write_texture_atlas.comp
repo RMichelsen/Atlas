@@ -1,0 +1,72 @@
+#version 460
+
+#define NUM_PRINTABLE_CHARS 95
+
+struct Line {
+	vec2 p1;
+	vec2 p2;
+};
+
+struct GlyphOffset {
+	uint offset;
+	uint num_lines;
+	vec2 padding;
+};
+
+layout(push_constant) uniform PushConstants {
+	int glyph_width;
+	int glyph_height;
+	float glyph_width_to_height_ratio;
+	float font_size;
+} pc;
+
+layout(binding = 0, r16ui) uniform writeonly uimage2D glyph_atlas;
+layout(binding = 1) readonly buffer Lines {
+	Line data[];
+} glyph_lines;
+layout(binding = 2) readonly buffer GlyphOffsets {
+	GlyphOffset data[];
+} glyph_offsets;
+
+layout (local_size_x = 1, local_size_y = 1) in;
+void main() {
+	uvec2 id = gl_GlobalInvocationID.xy;
+
+	uint num_glyphs_per_row = imageSize(glyph_atlas).x / pc.glyph_width;
+	uint x = uint(id.x / pc.glyph_width);
+	uint y = uint(id.y / pc.glyph_height);
+	uint char_index = y * num_glyphs_per_row + x;
+	if(char_index >= NUM_PRINTABLE_CHARS) {
+		return;
+	}
+	vec2 pixel_top_left = {
+		id.x % pc.glyph_width,
+		id.y % pc.glyph_height
+	};
+	uint result = 0;
+	for(int i = 0; i < glyph_offsets.data[char_index].num_lines; ++i) {
+		Line l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
+		vec2 p1 = l.p1;
+		vec2 p2 = l.p2;
+		for(uint y = 0; y < 4; ++y) {
+			for(uint x = 0; x < 4; ++x) {
+				vec2 p = pixel_top_left + vec2(x / 4.0f, y / 4.0f);
+			
+				if(p.y < p2.y && p.y >= p1.y) {
+					float dx = p2.x - p1.x;
+					float dy = p2.y - p1.y;
+					if(dy == 0.0f) {
+					   continue;
+					}
+					float line_x = (p.y - p1.y) * (dx / dy) + p1.x;
+					if(p.x > line_x) {
+						uint mask = 1U << ((3U - x) + y * 4U);
+						result ^= mask;
+					}
+				}
+			}
+		}
+	}
+	
+	imageStore(glyph_atlas, ivec2(id.xy), uvec4(result));
+}

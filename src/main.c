@@ -1,8 +1,9 @@
-#include "PCH.h"
+#include <core/common_types.h>
+#include <windows.h>
 
-#include "Graphics/Renderer.h"
+#include "rendering/renderer.h"
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch(msg) {
 	case WM_DESTROY:
 	{
@@ -23,13 +24,13 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 
 	const wchar_t *window_class_name = L"Atlas_Class";
 	const wchar_t *window_title = L"Atlas";
-	WNDCLASSEX window_class{
+	WNDCLASSEX window_class = {
 		.cbSize = sizeof(WNDCLASSEX),
 		.style = CS_HREDRAW | CS_VREDRAW,
-		.lpfnWndProc = WndProc,
+		.lpfnWndProc = window_proc,
 		.hInstance = hinstance,
-		.hCursor = LoadCursor(nullptr, IDC_ARROW),
-		.hbrBackground = nullptr,
+		.hCursor = LoadCursor(NULL, IDC_ARROW),
+		.hbrBackground = NULL,
 		.lpszClassName = window_class_name,
 	};
 
@@ -45,19 +46,19 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
-		nullptr,
-		nullptr,
+		NULL,
+		NULL,
 		hinstance,
-		nullptr
+		NULL
 	);
-	if(hwnd == nullptr) return 1;
+	if(hwnd == NULL) return 1;
 	ShowWindow(hwnd, cmd_show);
 
-	Renderer renderer = RendererInitialize(hinstance, hwnd);
+	Renderer renderer = renderer_initialize(hinstance, hwnd);
 
 	MSG msg;
-	while(true) {
-		while(PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+	while(1) {
+		while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 			if(msg.message == WM_QUIT) {
@@ -69,12 +70,12 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 			continue;
 		}
 		else {
-			RendererUpdate(hwnd, &renderer);
+			renderer_update(hwnd, &renderer);
 		}
 	}
 
 Done:
-	RendererDestroy(&renderer);
+	renderer_destroy(&renderer);
 	UnregisterClass(window_class_name, hinstance);
 	DestroyWindow(hwnd);
 	return 0;
