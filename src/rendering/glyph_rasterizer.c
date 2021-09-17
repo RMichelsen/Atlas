@@ -1,8 +1,6 @@
 #include "glyph_rasterizer.h"
-
 #include <wingdi.h>
 #include <windows.h>
-#include "rendering/shared_rendering_types.h"
 
 #define MAX_LINES_PER_GLYPH 4096
 #define NUM_PRINTABLE_CHARS 95
@@ -10,7 +8,7 @@ static MAT2 MAT2_IDENTITY = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
 
 typedef struct GlyphOutline {
 	Point origin;
-	uint32_t num_lines;
+	u32 num_lines;
 } GlyphOutline;
 
 Point fixed_to_float(POINTFX *p) {
@@ -45,7 +43,7 @@ float get_bezier_arc_length(Point a, Point b, Point c) {
 	return l1 + l2 * l3;
 }
 
-void add_straight_line(Point p1, Point p2, Line *lines, uint32_t *offset) {
+void add_straight_line(Point p1, Point p2, Line *lines, u32 *offset) {
 	float length = sqrtf((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
 	float step_size = 1.0f / (length / 0.5f);
 
@@ -59,7 +57,7 @@ void add_straight_line(Point p1, Point p2, Line *lines, uint32_t *offset) {
 		float by = p1.y * t2 + p2.y * (1 - t2);
 
 		assert(*offset < MAX_LINES_PER_GLYPH);
-		lines[(*offset)++] = ay > by ? 
+		lines[(*offset)++] = ay > by ?
 			(Line) { { ax, ay }, { bx, by } } :
 			(Line) { { bx, by }, { ax, ay } };
 
@@ -80,7 +78,7 @@ void add_straight_line(Point p1, Point p2, Line *lines, uint32_t *offset) {
 	}
 }
 
-void add_quadratic_spline(Point p1, Point p2, Point p3, Line *lines, uint32_t *offset) {
+void add_quadratic_spline(Point p1, Point p2, Point p3, Line *lines, u32 *offset) {
 	float length = get_bezier_arc_length(p1, p2, p3);
 	float step_size = 1.0f / (length / 0.5f);
 
@@ -115,10 +113,10 @@ void add_quadratic_spline(Point p1, Point p2, Point p3, Line *lines, uint32_t *o
 	};
 }
 
-void parse_polygon(TTPOLYGONHEADER *polygon_header, Line *lines, uint32_t *offset) {
+void parse_polygon(TTPOLYGONHEADER *polygon_header, Line *lines, u32 *offset) {
 	Point start_point = fixed_to_float(&polygon_header->pfxStart);
-	uint8_t *end = (uint8_t *)polygon_header + polygon_header->cb;
-	uint8_t *start = (uint8_t *)polygon_header + sizeof(TTPOLYGONHEADER);
+	u8 *end = (u8 *)polygon_header + polygon_header->cb;
+	u8 *start = (u8 *)polygon_header + sizeof(TTPOLYGONHEADER);
 
 	Point p1 = start_point;
 	while(start < end) {
@@ -146,9 +144,9 @@ void parse_polygon(TTPOLYGONHEADER *polygon_header, Line *lines, uint32_t *offse
 				Point p3 = (i + 1 == curve->cpfx - 1) ?
 					next_point :
 					(Point) {
-						.x = (p2.x + next_point.x) / 2.0f,
-						.y = (p2.y + next_point.y) / 2.0f
-					};
+					.x = (p2.x + next_point.x) / 2.0f,
+					.y = (p2.y + next_point.y) / 2.0f
+				};
 
 				add_quadratic_spline(p1, p2, p3, lines, offset);
 				p1 = p3;
@@ -158,7 +156,7 @@ void parse_polygon(TTPOLYGONHEADER *polygon_header, Line *lines, uint32_t *offse
 		} break;
 		case TT_PRIM_CSPLINE:
 		{
-			assert(FALSE);
+			assert(false);
 		} break;
 		}
 	}
@@ -167,15 +165,15 @@ void parse_polygon(TTPOLYGONHEADER *polygon_header, Line *lines, uint32_t *offse
 	add_straight_line(p1, start_point, lines, offset);
 }
 
-uint32_t get_glyph_max_outline_buffer_size(HDC device_context) {
+u32 get_glyph_max_outline_buffer_size(HDC device_context) {
 	GLYPHMETRICS glyph_metrics = { 0 };
-	uint32_t size_limit = 0;
-	uint32_t max_width = 0;
-	uint32_t max_height = 0;
+	u32 size_limit = 0;
+	u32 max_width = 0;
+	u32 max_height = 0;
 
 	for(int i = 32; i < 256; ++i) {
-		uint32_t size = GetGlyphOutline(device_context, (unsigned char)i, GGO_NATIVE | GGO_UNHINTED,
-									 &glyph_metrics, 0, NULL, &MAT2_IDENTITY);
+		u32 size = GetGlyphOutline(device_context, (unsigned char)i, GGO_NATIVE | GGO_UNHINTED,
+			&glyph_metrics, 0, NULL, &MAT2_IDENTITY);
 		if(size > size_limit) {
 			size_limit = size;
 		}
@@ -192,25 +190,25 @@ int cmp_lines(const void *l1, const void *l2) {
 
 GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer, Line *lines) {
 	GLYPHMETRICS glyph_metrics = { 0 };
-	uint32_t size = GetGlyphOutline(device_context, c, GGO_NATIVE | GGO_UNHINTED,
-									&glyph_metrics, 0, NULL, &MAT2_IDENTITY);
+	u32 size = GetGlyphOutline(device_context, c, GGO_NATIVE | GGO_UNHINTED,
+		&glyph_metrics, 0, NULL, &MAT2_IDENTITY);
 	GetGlyphOutline(device_context, c, GGO_NATIVE | GGO_UNHINTED,
-					&glyph_metrics, size, buffer, &MAT2_IDENTITY);
+		&glyph_metrics, size, buffer, &MAT2_IDENTITY);
 
-	uint32_t offset = 0;
-	uint32_t bytes_processed = 0;
+	u32 offset = 0;
+	u32 bytes_processed = 0;
 	while(bytes_processed < size) {
-		TTPOLYGONHEADER *polygon_header = (TTPOLYGONHEADER *)((uint8_t *)buffer + bytes_processed);
+		TTPOLYGONHEADER *polygon_header = (TTPOLYGONHEADER *)((u8 *)buffer + bytes_processed);
 		parse_polygon(polygon_header, lines, &offset);
 		bytes_processed += polygon_header->cb;
 	}
 
 	qsort(lines, offset, sizeof(Line), cmp_lines);
-	
+
 	return (GlyphOutline) {
-		.origin = { 
-			.x = (float)glyph_metrics.gmptGlyphOrigin.x, 
-			.y = (float)glyph_metrics.gmptGlyphOrigin.y 
+		.origin = {
+			.x = (float)glyph_metrics.gmptGlyphOrigin.x,
+			.y = (float)glyph_metrics.gmptGlyphOrigin.y
 		},
 		.num_lines = offset
 	};
@@ -218,33 +216,33 @@ GlyphOutline ProcessGlyphOutline(HDC device_context, char c, void *buffer, Line 
 
 TesselatedGlyphs TesselateGlyphs(HWND hwnd, const wchar_t *font_name) {
 	HDC device_context = GetDC(hwnd);
-	HFONT font = CreateFont(-54, 0, 0, 0, FW_REGULAR, FALSE, FALSE, FALSE,
-							ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-							DEFAULT_QUALITY, DEFAULT_PITCH, font_name);
+	HFONT font = CreateFont(-54, 0, 0, 0, FW_REGULAR, false, false, false,
+		ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY, DEFAULT_PITCH, font_name);
 	SelectObject(device_context, font);
 
-	uint32_t glyph_max_outline_buffer_size = get_glyph_max_outline_buffer_size(device_context);
+	u32 glyph_max_outline_buffer_size = get_glyph_max_outline_buffer_size(device_context);
 	void *scratch_buffer = malloc(glyph_max_outline_buffer_size);
 
-	uint32_t text_metrics_size = GetOutlineTextMetrics(device_context, 0, NULL);
+	u32 text_metrics_size = GetOutlineTextMetrics(device_context, 0, NULL);
 	OUTLINETEXTMETRIC *text_metrics = (OUTLINETEXTMETRIC *)malloc(text_metrics_size);
 	assert(text_metrics);
 
 	GetOutlineTextMetrics(device_context, text_metrics_size, text_metrics);
-	uint32_t glyph_width = text_metrics->otmTextMetrics.tmAveCharWidth;
-	uint32_t glyph_height = text_metrics->otmAscent - text_metrics->otmDescent;
+	u32 glyph_width = text_metrics->otmTextMetrics.tmAveCharWidth;
+	u32 glyph_height = text_metrics->otmAscent - text_metrics->otmDescent;
 
 	Line *lines = (Line *)malloc(MAX_LINES_PER_GLYPH * NUM_PRINTABLE_CHARS * sizeof(Line));
 	GlyphOffset *glyph_offsets = (GlyphOffset *)malloc(NUM_PRINTABLE_CHARS * sizeof(GlyphOffset));
-	uint32_t line_offset = 0;
+	u32 line_offset = 0;
 
-	for(uint32_t c = 0x20; c <= 0x7E; ++c) {
-		uint32_t index = c - 0x20;
+	for(u32 c = 0x20; c <= 0x7E; ++c) {
+		u32 index = c - 0x20;
 
 		GlyphOutline glyph_outline = ProcessGlyphOutline(device_context, (char)c, scratch_buffer, lines + line_offset);
 
 		// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
-		for(uint32_t i = 0; i < glyph_outline.num_lines; ++i) {
+		for(u32 i = 0; i < glyph_outline.num_lines; ++i) {
 			lines[line_offset + i].a.y = glyph_height - (lines[line_offset + i].a.y - text_metrics->otmDescent);
 			lines[line_offset + i].b.y = glyph_height - (lines[line_offset + i].b.y - text_metrics->otmDescent);
 		}

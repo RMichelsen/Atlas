@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 
 #define VK_CHECK(x) if((x) != VK_SUCCESS) { 			\
-	assert(FALSE); 										\
+	assert(false); 										\
 	printf("Vulkan error: %s:%i", __FILE__, __LINE__); 	\
 }
 
@@ -14,8 +14,8 @@ typedef struct PhysicalDevice {
 	VkPhysicalDeviceProperties2 properties;
 	VkPhysicalDeviceMemoryProperties memory_properties;
 	VkSurfaceCapabilitiesKHR surface_capabilities;
-	uint32_t graphics_family_idx;
-	uint32_t compute_family_idx;
+	u32 graphics_family_idx;
+	u32 compute_family_idx;
 } PhysicalDevice;
 
 typedef struct LogicalDevice {
@@ -26,20 +26,13 @@ typedef struct LogicalDevice {
 
 typedef struct Swapchain {
 	VkSwapchainKHR handle;
-	uint64_t image_count;
+	u64 image_count;
 	VkFormat format;
 	VkPresentModeKHR present_mode;
 	VkExtent2D extent;
 	VkImage *images;
 	VkImageView *image_views;
 } Swapchain;
-
-typedef struct FrameResources {
-	VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
-	VkSemaphore image_available_semaphores[MAX_FRAMES_IN_FLIGHT];
-	VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
-	VkFence fences[MAX_FRAMES_IN_FLIGHT];
-} FrameResources;
 
 typedef struct DescriptorSet {
 	VkDescriptorSet handle;
@@ -90,12 +83,12 @@ typedef struct GraphicsPushConstants {
 } GraphicsPushConstants;
 
 typedef struct Vertex {
-	uint32_t pos : 3;
-	uint32_t uv : 3;
-	uint32_t glyph_offset_x : 8;
-	uint32_t glyph_offset_y : 5;
-	uint32_t cell_offset_x : 8;
-	uint32_t cell_offset_y : 5;
+	u32 pos : 3;
+	u32 uv : 3;
+	u32 glyph_offset_x : 8;
+	u32 glyph_offset_y : 5;
+	u32 cell_offset_x : 8;
+	u32 cell_offset_y : 5;
 } Vertex;
 
 typedef enum ShaderType {
@@ -115,16 +108,19 @@ typedef struct Renderer {
 	Swapchain swapchain;
 
 	VkCommandPool command_pool;
-	FrameResources frame_resources;
+	VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
+	VkSemaphore image_available_semaphores[MAX_FRAMES_IN_FLIGHT];
+	VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
+	VkFence fences[MAX_FRAMES_IN_FLIGHT];
+	VkFramebuffer framebuffers[MAX_FRAMES_IN_FLIGHT];
 
 	DescriptorSet descriptor_set;
 	VkSampler texture_sampler;
 	VkRenderPass render_pass;
 	Pipeline graphics_pipeline;
+	MappedBuffer vertex_buffer;
 
 	GlyphResources glyph_resources;
-
-	MappedBuffer vertex_buffer;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT debug_messenger;
@@ -142,16 +138,16 @@ typedef struct Line {
 } Line;
 
 typedef struct GlyphOffset {
-	uint32_t offset;
-	uint32_t num_lines;
-	uint64_t padding;
+	u32 offset;
+	u32 num_lines;
+	u64 padding;
 } GlyphOffset;
 
 typedef struct TesselatedGlyphs {
 	Line *lines;
-	uint64_t num_lines;
+	u64 num_lines;
 	GlyphOffset *glyph_offsets;
-	uint64_t num_glyphs;
+	u64 num_glyphs;
 	GlyphPushConstants glyph_push_constants;
 } TesselatedGlyphs;
 

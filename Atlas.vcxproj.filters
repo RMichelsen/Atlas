@@ -35,9 +35,6 @@
     <ClInclude Include="src\rendering\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\rendering\vulkan_common.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\rendering\shared_rendering_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
