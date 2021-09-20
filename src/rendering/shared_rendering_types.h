@@ -8,6 +8,7 @@
 }
 
 #define MAX_FRAMES_IN_FLIGHT 3
+#define NUM_PRINTABLE_CHARS 95
 
 typedef struct PhysicalDevice {
 	VkPhysicalDevice handle;

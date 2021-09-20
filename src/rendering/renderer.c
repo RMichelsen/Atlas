@@ -771,6 +771,11 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
 	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs(hwnd, L"Consolas");
+
+	u32 chars_per_row = GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_width;
+	u32 chars_per_col = GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_height;
+	assert(chars_per_row * chars_per_col >= NUM_PRINTABLE_CHARS);
+
 	MappedBuffer glyph_lines_buffer = create_mapped_buffer(logical_device.handle,
 		physical_device.memory_properties,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -947,8 +952,7 @@ void write_descriptors(LogicalDevice logical_device, GlyphResources *glyph_resou
 	vkUpdateDescriptorSets(logical_device.handle, 1, &write_descriptor_set, 0, NULL);
 }
 
-void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph_resources,
-	VkCommandPool command_pool) {
+void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph_resources, VkCommandPool command_pool) {
 	VkCommandBuffer command_buffer = start_one_time_command_buffer(logical_device, command_pool);
 
 	transition_glyph_image(logical_device, command_buffer, glyph_resources->glyph_atlas);

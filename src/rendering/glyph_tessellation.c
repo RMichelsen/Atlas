@@ -2,21 +2,13 @@
 
 #include "ttfparser/ttfparser.h"
 
-#define MAX_LINES_PER_GLYPH 60000
-#define NUM_PRINTABLE_CHARS 95
+#define MAX_TOTAL_GLYPH_LINES 65536
 
 typedef struct TessellationContext {
 	Line *lines;
 	u32 num_lines;
 	Point last_point;
 } TessellationContext;
-
-//Point fixed_vector_to_point(FT_Vector vector, FT_UShort units_per_em) {
-//	return (Point) {
-//		.x = vector.x / 64.0f,
-//		.y = vector.y / 64.0f
-//	};
-//}
 
 // https://members.loria.fr/samuel.hornus/quadratic-arc-length.html
 float get_bezier_arc_length(Point a, Point b, Point c) {
@@ -53,7 +45,7 @@ void add_straight_line(Point p1, Point p2, TessellationContext *context) {
 		return;
 	}
 
-	float step_size = 1.0f / (length / 20.0f);
+	float step_size = 1.0f / (length / 40.0f);
 
 	float t2 = step_size;
 	while(1) {
@@ -64,7 +56,7 @@ void add_straight_line(Point p1, Point p2, TessellationContext *context) {
 		float bx = p1.x * t2 + p2.x * (1 - t2);
 		float by = p1.y * t2 + p2.y * (1 - t2);
 
-		assert(context->num_lines < MAX_LINES_PER_GLYPH);
+		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
 		context->lines[context->num_lines++] = 
 			ay > by ? (Line) { { ax, ay }, { bx, by } } :
 			(Line) { { bx, by }, { ax, ay } };
@@ -75,7 +67,7 @@ void add_straight_line(Point p1, Point p2, TessellationContext *context) {
 			float bx = p1.x;
 			float by = p1.y;
 
-			assert(context->num_lines < MAX_LINES_PER_GLYPH);
+			assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
 			context->lines[context->num_lines++] = 
 				ay > by ? (Line) { { ax, ay }, { bx, by } } :
 				(Line) { { bx, by }, { ax, ay } };
@@ -88,7 +80,7 @@ void add_straight_line(Point p1, Point p2, TessellationContext *context) {
 
 void add_quadratic_spline(Point p1, Point p2, Point p3, TessellationContext *context) {
 	float length = get_bezier_arc_length(p1, p2, p3);
-	float step_size = 1.0f / (length / 20.0f);
+	float step_size = 1.0f / (length / 40.0f);
 
 	float t2 = step_size;
 	while(1) {
@@ -99,7 +91,7 @@ void add_quadratic_spline(Point p1, Point p2, Point p3, TessellationContext *con
 		float bx = (1 - t2) * ((1 - t2) * p1.x + t2 * p2.x) + t2 * ((1 - t2) * p2.x + t2 * p3.x);
 		float by = (1 - t2) * ((1 - t2) * p1.y + t2 * p2.y) + t2 * ((1 - t2) * p2.y + t2 * p3.y);
 
-		assert(context->num_lines < MAX_LINES_PER_GLYPH);
+		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
 		context->lines[context->num_lines++] = 
 			ay > by ? (Line) { { ax, ay }, { bx, by } } :
 			(Line) { { bx, by }, { ax, ay } };
@@ -110,7 +102,7 @@ void add_quadratic_spline(Point p1, Point p2, Point p3, TessellationContext *con
 			float bx = p3.x;
 			float by = p3.y;
 
-			assert(context->num_lines < MAX_LINES_PER_GLYPH);
+			assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
 			context->lines[context->num_lines++] = 
 				ay > by ? (Line) { { ax, ay }, { bx, by } } :
 				(Line) { { bx, by }, { ax, ay } };
@@ -159,7 +151,8 @@ static ttfp_outline_builder outline_builder = {
 };
 
 TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
-	FILE *file = fopen("C:/Windows/Fonts/consola.ttf", "rb");
+	//FILE *file = fopen("C:/Windows/Fonts/consola.ttf", "rb");
+	FILE *file = fopen("C:/Users/Rasmus/Downloads/FiraCode-Regular.ttf", "rb");
 	fseek(file, 0, SEEK_END);
 	u32 file_size = ftell(file);
 	rewind(file);
@@ -171,23 +164,28 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 	void *font_face = malloc(ttfp_face_size_of());
 
 	bool ok = ttfp_face_init(font_data, file_size, 0, font_face);
+	assert(ok);
 
-	bool is_mono = ttfp_is_monospaced(font_face);
+	assert(ttfp_is_monospaced(font_face));
 
 	TessellationContext tessellation_context = {
-		.lines = (Line *)malloc(MAX_LINES_PER_GLYPH * NUM_PRINTABLE_CHARS * sizeof(Line)),
+		.lines = (Line *)malloc(MAX_TOTAL_GLYPH_LINES * sizeof(Line)),
 		.num_lines = 0
 	};
 	GlyphOffset *glyph_offsets = (GlyphOffset *)malloc(NUM_PRINTABLE_CHARS * sizeof(GlyphOffset));
 
-	for(u32 c = 0x20; c <= 0x7E; ++c) {
+	// For the space character an empty entry is fine
+	glyph_offsets[0] = (GlyphOffset) { 0 };
+
+	for(u32 c = 0x21; c <= 0x7E; ++c) {
 		u32 index = c - 0x20;
 
 		u32 offset = tessellation_context.num_lines;
 
 		ttfp_rect bounding_box = { 0 };
-		bool yes = ttfp_outline_glyph(font_face, outline_builder, &tessellation_context,
+		ok = ttfp_outline_glyph(font_face, outline_builder, &tessellation_context,
 			ttfp_get_glyph_index(font_face, c), &bounding_box);
+		assert(ok);
 
 		glyph_offsets[index] = (GlyphOffset) {
 			.offset = offset,
@@ -198,13 +196,15 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 	float descent = ttfp_get_descender(font_face);
 	float height = ttfp_get_height(font_face);
 
-	float font_pt_size = 60.0f;
+	float font_pt_size = 80.0f;
 	float font_scale = font_pt_size * GetDpiForSystem() / (GetDpiForSystem() * ttfp_get_units_per_em(font_face));
 
+	// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
 	for(u32 i = 0; i < tessellation_context.num_lines; ++i) {
 		tessellation_context.lines[i].a.y = height - (tessellation_context.lines[i].a.y - descent);
 		tessellation_context.lines[i].b.y = height - (tessellation_context.lines[i].b.y - descent);
 
+		// Scale all lines with the chosen font size
 		tessellation_context.lines[i].a.x *= font_scale;
 		tessellation_context.lines[i].a.y *= font_scale;
 		tessellation_context.lines[i].b.x *= font_scale;
