@@ -11,8 +11,8 @@ const vec2 uv_coords[] = {
 
 layout(push_constant) uniform PushConstants {
 	vec2 display_size;
-	int glyph_width;
-	int glyph_height;
+	float glyph_width;
+	float glyph_height;
 	float glyph_width_to_height_ratio;
 	float font_size;
 } pc;

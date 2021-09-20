@@ -18,10 +18,10 @@
     <ClCompile Include="src\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\rendering\glyph_rasterizer.c">
+    <ClCompile Include="src\rendering\renderer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\rendering\renderer.c">
+    <ClCompile Include="src\rendering\glyph_tessellation.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -29,13 +29,16 @@
     <ClInclude Include="src\core\common_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\rendering\glyph_rasterizer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\rendering\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\rendering\shared_rendering_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\rendering\glyph_tessellation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dependencies\ttfparser\include\ttfparser\ttfparser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -46,8 +49,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="misc\glsl.targets" />
+    <None Include="dependencies\ttfparser\LICENSE-MIT" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="misc\glsl.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="dependencies\ttfparser\lib\ttfparser.lib" />
   </ItemGroup>
 </Project>

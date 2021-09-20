@@ -1,5 +1,5 @@
 #pragma once
-#include <rendering/shared_rendering_types.h>
+#include "rendering/shared_rendering_types.h"
 
 Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd);
 void renderer_resize(Renderer *renderer);

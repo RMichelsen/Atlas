@@ -1,7 +1,7 @@
 #include "renderer.h"
 #include <vulkan/vulkan.h>
 
-#include "rendering/glyph_rasterizer.h"
+#include "rendering/glyph_tessellation.h"
 #include "rendering/shared_rendering_types.h"
 
 #define GLYPH_ATLAS_SIZE 1024
@@ -770,7 +770,7 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 	Image glyph_atlas = create_image_2d(logical_device.handle, physical_device.memory_properties,
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
-	TesselatedGlyphs tesselated_glyphs = TesselateGlyphs(hwnd, L"Consolas");
+	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs(hwnd, L"Consolas");
 	MappedBuffer glyph_lines_buffer = create_mapped_buffer(logical_device.handle,
 		physical_device.memory_properties,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -969,7 +969,7 @@ void add_string(const char *str, MappedBuffer vertex_buffer, GlyphResources *gly
 	Vertex *vertices = (Vertex *)malloc(size);
 	u32 offset = 0;
 
-	u32 glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.glyph_width;
+	u32 glyphs_per_row = (u32)(GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.glyph_width);
 
 	for(int i = 0; i < strlen(str); ++i) {
 		u32 glyph_number = (u32)str[i] - 0x20;
@@ -1123,7 +1123,7 @@ void renderer_update(HWND hwnd, Renderer *renderer) {
 		},
 		.glyph_width = renderer->glyph_resources.glyph_push_constants.glyph_width,
 		.glyph_height = renderer->glyph_resources.glyph_push_constants.glyph_height,
-		.glyph_width_to_height_ratio = (float)renderer->glyph_resources.glyph_push_constants.glyph_width /
+		.glyph_width_to_height_ratio = renderer->glyph_resources.glyph_push_constants.glyph_width /
 			renderer->glyph_resources.glyph_push_constants.glyph_height,
 		.font_size = 30.0f
 	};

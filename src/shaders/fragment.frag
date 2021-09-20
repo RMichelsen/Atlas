@@ -6,8 +6,8 @@
 
 layout(push_constant) uniform PushConstants {
 	vec2 display_size;
-	int glyph_width;
-	int glyph_height;
+	float glyph_width;
+	float glyph_height;
 	float glyph_width_to_height_ratio;
 	float font_size;
 } pc;
@@ -58,7 +58,8 @@ void main() {
 	vec3 text_color = vec3(0.83137f, 0.83137f, 0.83137f);
 	vec3 bg_color = vec3(0.117647f, 0.117647f, 0.117647f);
 
-	vec3 raw_result = mix(pow(bg_color, vec3(1.43)), pow(text_color, vec3(1.43f)), vec3(coverage));
-	vec3 gamma_corrected_result = pow(raw_result, vec3(1.0f / 1.43f));
+	float gamma = 1.8f;
+	vec3 raw_result = mix(pow(bg_color, vec3(gamma)), pow(text_color, vec3(gamma)), vec3(coverage));
+	vec3 gamma_corrected_result = pow(raw_result, vec3(1.0f / gamma));
 	out_color = vec4(gamma_corrected_result, 1.0f);
 }

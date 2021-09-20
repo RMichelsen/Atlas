@@ -58,10 +58,8 @@ typedef struct MappedBuffer {
 } MappedBuffer;
 
 typedef struct GlyphPushConstants {
-	int glyph_width;
-	int glyph_height;
-	int ascent;
-	int descent;
+	float glyph_width;
+	float glyph_height;
 } GlyphPushConstants;
 
 typedef struct GlyphResources {
@@ -77,8 +75,8 @@ typedef struct GlyphResources {
 
 typedef struct GraphicsPushConstants {
 	float display_size[2];
-	int glyph_width;
-	int glyph_height;
+	float glyph_width;
+	float glyph_height;
 	float glyph_width_to_height_ratio;
 	float font_size;
 } GraphicsPushConstants;
@@ -151,5 +149,4 @@ typedef struct TesselatedGlyphs {
 	u64 num_glyphs;
 	GlyphPushConstants glyph_push_constants;
 } TesselatedGlyphs;
-
 

@@ -14,10 +14,8 @@ struct GlyphOffset {
 };
 
 layout(push_constant) uniform PushConstants {
-	int glyph_width;
-	int glyph_height;
-	float glyph_width_to_height_ratio;
-	float font_size;
+	float glyph_width;
+	float glyph_height;
 } pc;
 
 layout(binding = 0, r16ui) uniform writeonly uimage2D glyph_atlas;
@@ -32,7 +30,7 @@ layout (local_size_x = 1, local_size_y = 1) in;
 void main() {
 	uvec2 id = gl_GlobalInvocationID.xy;
 
-	uint num_glyphs_per_row = imageSize(glyph_atlas).x / pc.glyph_width;
+	uint num_glyphs_per_row = uint(imageSize(glyph_atlas).x / pc.glyph_width);
 	uint char_index = uint(id.y / pc.glyph_height) * num_glyphs_per_row + uint(id.x / pc.glyph_width);
 	if(char_index >= NUM_PRINTABLE_CHARS) {
 		return;
@@ -41,8 +39,8 @@ void main() {
 	uint result = 0;
 
 	vec2 pixel_top_left = {
-		fract(float(id.x) / pc.glyph_width) * pc.glyph_width,
-		fract(float(id.y) / pc.glyph_height) * pc.glyph_height
+		id.x - pc.glyph_width * floor(id.x / pc.glyph_width),
+		id.y - pc.glyph_height * floor(id.y / pc.glyph_height)
 	};
 
 	for(int i = 0; i < glyph_offsets.data[char_index].num_lines; ++i) {
