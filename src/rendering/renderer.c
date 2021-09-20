@@ -185,7 +185,9 @@ LogicalDevice create_logical_device(PhysicalDevice physical_device) {
 		.enabledExtensionCount = _countof(DEVICE_EXTENSIONS),
 		.ppEnabledExtensionNames = DEVICE_EXTENSIONS,
 		.pEnabledFeatures = &(VkPhysicalDeviceFeatures) {
-			.shaderStorageImageWriteWithoutFormat = VK_TRUE
+			.shaderStorageImageWriteWithoutFormat = VK_TRUE,
+			.shaderFloat64 = VK_TRUE,
+			.shaderInt64 = VK_TRUE
 		}
 	};
 
@@ -1115,6 +1117,10 @@ void renderer_update(HWND hwnd, Renderer *renderer) {
 	vkCmdBindVertexBuffers(renderer->command_buffers[resource_index], 0, 1, &renderer->vertex_buffer.handle, &offsets);
 
 	GraphicsPushConstants graphics_push_constants = {
+		.display_size = {
+			(float)renderer->swapchain.extent.width,
+			(float)renderer->swapchain.extent.height
+		},
 		.glyph_width = renderer->glyph_resources.glyph_push_constants.glyph_width,
 		.glyph_height = renderer->glyph_resources.glyph_push_constants.glyph_height,
 		.glyph_width_to_height_ratio = (float)renderer->glyph_resources.glyph_push_constants.glyph_width /

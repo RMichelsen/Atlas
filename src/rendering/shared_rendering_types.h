@@ -76,6 +76,7 @@ typedef struct GlyphResources {
 } GlyphResources;
 
 typedef struct GraphicsPushConstants {
+	float display_size[2];
 	int glyph_width;
 	int glyph_height;
 	float glyph_width_to_height_ratio;
