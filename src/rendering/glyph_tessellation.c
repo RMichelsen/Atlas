@@ -151,8 +151,7 @@ static ttfp_outline_builder outline_builder = {
 };
 
 TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
-	//FILE *file = fopen("C:/Windows/Fonts/consola.ttf", "rb");
-	FILE *file = fopen("C:/Users/Rasmus/Downloads/FiraCode-Regular.ttf", "rb");
+	FILE *file = fopen("C:/Windows/Fonts/consola.ttf", "rb");
 	fseek(file, 0, SEEK_END);
 	u32 file_size = ftell(file);
 	rewind(file);
@@ -195,9 +194,15 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 
 	float descent = ttfp_get_descender(font_face);
 	float height = ttfp_get_height(font_face);
+	float ascent = ttfp_get_ascender(font_face);
 
-	float font_pt_size = 80.0f;
-	float font_scale = font_pt_size * GetDpiForSystem() / (GetDpiForSystem() * ttfp_get_units_per_em(font_face));
+	float font_pt_size = 12.0f;
+	float font_scale = font_pt_size * GetDpiForSystem() / (72.0f * ttfp_get_units_per_em(font_face));
+
+	// Ensure that the baseline falls on a round pixel
+	float baseline = ttfp_get_ascender(font_face);
+	float target = ceilf(baseline * font_scale);
+	font_scale = target / baseline;
 
 	// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
 	for(u32 i = 0; i < tessellation_context.num_lines; ++i) {
@@ -211,9 +216,14 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 		tessellation_context.lines[i].b.y *= font_scale;
 	}
 
+	float glyph_width = font_scale * ttfp_get_glyph_hor_advance(font_face, ttfp_get_glyph_index(font_face, (u32)'M'));
+	float glyph_height = font_scale * height;
+
 	GlyphPushConstants glyph_push_constants = {
-		.glyph_width = ttfp_get_glyph_hor_advance(font_face, ttfp_get_glyph_index(font_face, (u32)'M')) * font_scale,
-		.glyph_height = ttfp_get_height(font_face) * font_scale
+		.glyph_width = glyph_width,
+		.glyph_height = glyph_height,
+		.glyph_atlas_width = (u32)ceilf(glyph_width) + 1,
+		.glyph_atlas_height = (u32)ceilf(glyph_height) + 1
 	};
 
 	free(font_data);

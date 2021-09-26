@@ -61,6 +61,8 @@ typedef struct MappedBuffer {
 typedef struct GlyphPushConstants {
 	float glyph_width;
 	float glyph_height;
+	u32 glyph_atlas_width;
+	u32 glyph_atlas_height;
 } GlyphPushConstants;
 
 typedef struct GlyphResources {
@@ -78,8 +80,8 @@ typedef struct GraphicsPushConstants {
 	float display_size[2];
 	float glyph_width;
 	float glyph_height;
-	float glyph_width_to_height_ratio;
-	float font_size;
+	u32 glyph_atlas_width;
+	u32 glyph_atlas_height;
 } GraphicsPushConstants;
 
 typedef struct Vertex {

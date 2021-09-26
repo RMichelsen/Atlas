@@ -4,7 +4,7 @@
 #include "rendering/glyph_tessellation.h"
 #include "rendering/shared_rendering_types.h"
 
-#define GLYPH_ATLAS_SIZE 1024
+#define GLYPH_ATLAS_SIZE 2048
 
 const char *LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
 const char *INSTANCE_EXTENSIONS[] = {
@@ -772,8 +772,8 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 
 	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs(hwnd, L"Consolas");
 
-	u32 chars_per_row = GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_width;
-	u32 chars_per_col = GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_height;
+	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_width);
+	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_height);
 	assert(chars_per_row * chars_per_col >= NUM_PRINTABLE_CHARS);
 
 	MappedBuffer glyph_lines_buffer = create_mapped_buffer(logical_device.handle,
@@ -973,7 +973,7 @@ void add_string(const char *str, MappedBuffer vertex_buffer, GlyphResources *gly
 	Vertex *vertices = (Vertex *)malloc(size);
 	u32 offset = 0;
 
-	u32 glyphs_per_row = (u32)(GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.glyph_width);
+	u32 glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.glyph_atlas_width;
 
 	for(int i = 0; i < strlen(str); ++i) {
 		u32 glyph_number = (u32)str[i] - 0x20;
@@ -1127,9 +1127,8 @@ void renderer_update(HWND hwnd, Renderer *renderer) {
 		},
 		.glyph_width = renderer->glyph_resources.glyph_push_constants.glyph_width,
 		.glyph_height = renderer->glyph_resources.glyph_push_constants.glyph_height,
-		.glyph_width_to_height_ratio = renderer->glyph_resources.glyph_push_constants.glyph_width /
-			renderer->glyph_resources.glyph_push_constants.glyph_height,
-		.font_size = 30.0f
+		.glyph_atlas_width = renderer->glyph_resources.glyph_push_constants.glyph_atlas_width,
+		.glyph_atlas_height = renderer->glyph_resources.glyph_push_constants.glyph_atlas_height
 	};
 	vkCmdPushConstants(renderer->command_buffers[resource_index], renderer->graphics_pipeline.layout,
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,

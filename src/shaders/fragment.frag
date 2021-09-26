@@ -8,8 +8,8 @@ layout(push_constant) uniform PushConstants {
 	vec2 display_size;
 	float glyph_width;
 	float glyph_height;
-	float glyph_width_to_height_ratio;
-	float font_size;
+	uint glyph_atlas_width;
+	uint glyph_atlas_height;
 } pc;
 
 layout(binding = 0) uniform usampler2D glyph_atlas;
@@ -20,7 +20,8 @@ layout(location = 1) flat in uvec2 in_glyph_offset;
 layout(location = 0) out vec4 out_color;
 
 void main() {
-	vec2 pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height) + in_glyph_offset * vec2(pc.glyph_width, pc.glyph_height);
+	// TODO: Unsure why this ceil is necessary
+	vec2 pixel_origin = in_uv * ceil(vec2(pc.glyph_width, pc.glyph_height)) + in_glyph_offset * vec2(pc.glyph_atlas_width, pc.glyph_atlas_height);
 	vec2 texel_origin = floor(pixel_origin);
 	vec2 weight = pixel_origin - texel_origin;
 
