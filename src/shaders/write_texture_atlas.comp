@@ -34,18 +34,22 @@ void main() {
 	uvec2 id = gl_GlobalInvocationID.xy;
 
 	uint num_glyphs_per_row = uint(imageSize(glyph_atlas).x / pc.glyph_atlas_width);
-	uint char_index = uint(id.y / pc.glyph_atlas_height) * num_glyphs_per_row + uint(id.x / pc.glyph_atlas_width);
+	if(id.x > pc.glyph_atlas_width * num_glyphs_per_row) {
+		return;
+	}
+	uint glyph_row_index = uint(id.x / pc.glyph_atlas_width);
+	uint glyph_col_index = uint(id.y / pc.glyph_atlas_height);
+	uint char_index = glyph_col_index * num_glyphs_per_row + glyph_row_index;
 	if(char_index >= NUM_PRINTABLE_CHARS) {
 		return;
 	}
-
-	uint result = 0;
 
 	vec2 pixel_top_left = {
 		id.x - pc.glyph_atlas_width * floor(id.x / pc.glyph_atlas_width),
 		id.y - pc.glyph_atlas_height * floor(id.y / pc.glyph_atlas_height)
 	};
 
+	uint result = 0;
 	for(int i = 0; i < glyph_offsets.data[char_index].num_lines; ++i) {
 		Line l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
 		vec2 p1 = l.p1;

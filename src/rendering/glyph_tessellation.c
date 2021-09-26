@@ -24,93 +24,63 @@ float get_bezier_arc_length(Point a, Point b, Point c) {
 	float F_magn = sqrtf(Fx * Fx + Fy * Fy);
 	float A_magn = sqrtf(Ax * Ax + Ay * Ay);
 
-	if(B_magn == 0.0f || F_magn == 0.0f || A_magn == 0.0f) {
-		return 0.0f;
-	}
-
 	float l1 = (F_magn * A_dot_F - B_magn * A_dot_B) / (A_magn * A_magn);
 	float l2 = ((B_magn * B_magn) / A_magn) - ((A_dot_B * A_dot_B) / (A_magn * A_magn * A_magn));
 	float l3 = logf(A_magn * F_magn + A_dot_F) - logf(A_magn * B_magn + A_dot_B);
-
-	if(isnan(l3) || isinf(l3)) {
-		return 0.0f;
-	}
 
 	return l1 + l2 * l3;
 }
 
 void add_straight_line(Point p1, Point p2, TessellationContext *context) {
 	float length = sqrtf((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
-	if(length == 0.0f) {
-		return;
-	}
+	u32 number_of_steps = (u32)ceilf(length / 10.0f);
+	float step_fraction = 1.0f / number_of_steps;
 
-	float step_size = 1.0f / (length / 40.0f);
-
-	float t2 = step_size;
-	while(1) {
-		float t1 = t2 - step_size;
-
+	for(u32 i = 0; i < number_of_steps; ++i) {
+		float t1 = i * step_fraction;
+		float t2 = (i + 1) * step_fraction;
 		float ax = p1.x * t1 + p2.x * (1 - t1);
 		float ay = p1.y * t1 + p2.y * (1 - t1);
 		float bx = p1.x * t2 + p2.x * (1 - t2);
 		float by = p1.y * t2 + p2.y * (1 - t2);
 
-		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
-		context->lines[context->num_lines++] = 
-			ay > by ? (Line) { { ax, ay }, { bx, by } } :
-			(Line) { { bx, by }, { ax, ay } };
-
-		if(t2 + step_size > 1.0f) {
-			float ax = p1.x * t2 + p2.x * (1 - t2);
-			float ay = p1.y * t2 + p2.y * (1 - t2);
-			float bx = p1.x;
-			float by = p1.y;
-
-			assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
-			context->lines[context->num_lines++] = 
-				ay > by ? (Line) { { ax, ay }, { bx, by } } :
-				(Line) { { bx, by }, { ax, ay } };
-			break;
+		if(i == number_of_steps - 1) {
+			bx = p1.x;
+			by = p1.y;
 		}
 
-		t2 += step_size;
+		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
+		context->lines[context->num_lines++] =
+			ay > by ? (Line) { { ax, ay }, { bx, by } } :
+			(Line) { { bx, by }, { ax, ay }
+		};
 	}
 }
 
 void add_quadratic_spline(Point p1, Point p2, Point p3, TessellationContext *context) {
 	float length = get_bezier_arc_length(p1, p2, p3);
-	float step_size = 1.0f / (length / 40.0f);
+	u32 number_of_steps = (u32)ceilf(length / 10.0f);
+	float step_fraction = 1.0f / number_of_steps;
 
-	float t2 = step_size;
-	while(1) {
-		float t1 = t2 - step_size;
-
+	for(u32 i = 0; i < number_of_steps; ++i) {
+		float t1 = i * step_fraction;
+		float t2 = (i + 1) * step_fraction;
 		float ax = (1 - t1) * ((1 - t1) * p1.x + t1 * p2.x) + t1 * ((1 - t1) * p2.x + t1 * p3.x);
 		float ay = (1 - t1) * ((1 - t1) * p1.y + t1 * p2.y) + t1 * ((1 - t1) * p2.y + t1 * p3.y);
 		float bx = (1 - t2) * ((1 - t2) * p1.x + t2 * p2.x) + t2 * ((1 - t2) * p2.x + t2 * p3.x);
 		float by = (1 - t2) * ((1 - t2) * p1.y + t2 * p2.y) + t2 * ((1 - t2) * p2.y + t2 * p3.y);
 
-		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
-		context->lines[context->num_lines++] = 
-			ay > by ? (Line) { { ax, ay }, { bx, by } } :
-			(Line) { { bx, by }, { ax, ay } };
-
-		if(t2 + step_size > 1.0f) {
-			float ax = (1 - t2) * ((1 - t2) * p1.x + t2 * p2.x) + t2 * ((1 - t2) * p2.x + t2 * p3.x);
-			float ay = (1 - t2) * ((1 - t2) * p1.y + t2 * p2.y) + t2 * ((1 - t2) * p2.y + t2 * p3.y);
-			float bx = p3.x;
-			float by = p3.y;
-
-			assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
-			context->lines[context->num_lines++] = 
-				ay > by ? (Line) { { ax, ay }, { bx, by } } :
-				(Line) { { bx, by }, { ax, ay } };
-			break;
+		if(i == number_of_steps - 1) {
+			bx = p3.x;
+			by = p3.y;
 		}
 
-		t2 += step_size;
-	};
+		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
+		context->lines[context->num_lines++] =
+			ay > by ? (Line) { { ax, ay }, { bx, by } } :
+			(Line) { { bx, by }, { ax, ay }
+		};
+	}
 }
 
 void outline_move_to(float x, float y, void *data) {

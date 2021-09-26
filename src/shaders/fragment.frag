@@ -19,58 +19,60 @@ layout(location = 1) flat in uvec2 in_glyph_offset;
 
 layout(location = 0) out vec4 out_color;
 
-vec3 get_subpixel_contributions(vec2 pixel_origin) {
-	vec2 texel_origin = floor(pixel_origin);
-	vec2 weight = pixel_origin - texel_origin;
-
-	vec2 glyph_atlas_size = textureSize(glyph_atlas, 0);
-	vec2 texel_center = (texel_origin + vec2(1.0f)) / glyph_atlas_size;
-	uvec4 texel_values = textureGather(glyph_atlas, texel_center);
-
-	uint top_right = texel_values.z;
-	uint top_left = texel_values.w;
-	uint bot_left = texel_values.x;
-	uint bot_right = texel_values.y;
-
-	uint64_t row1 = (bitfieldExtract(top_left, 0, 4) << 4)  | bitfieldExtract(top_right, 0, 4);
-	uint64_t row2 = (bitfieldExtract(top_left, 4, 4) << 4)  | bitfieldExtract(top_right, 4, 4);
-	uint64_t row3 = (bitfieldExtract(top_left, 8, 4) << 4)  | bitfieldExtract(top_right, 8, 4);
-	uint64_t row4 = (bitfieldExtract(top_left, 12, 4) << 4) | bitfieldExtract(top_right, 12, 4);
-	uint64_t row5 = (bitfieldExtract(bot_left, 0, 4) << 4)  | bitfieldExtract(bot_right, 0, 4);
-	uint64_t row6 = (bitfieldExtract(bot_left, 4, 4) << 4)  | bitfieldExtract(bot_right, 4, 4);
-	uint64_t row7 = (bitfieldExtract(bot_left, 8, 4) << 4)  | bitfieldExtract(bot_right, 8, 4);
-	uint64_t row8 = (bitfieldExtract(bot_left, 12, 4) << 4) | bitfieldExtract(bot_right, 12, 4);
+vec3 get_subpixel_contributions(vec2 weight, uint top_left, uint top_right, uint bot_left, uint bot_right) {
 	uint64_t rows[] = {
-		row1, row2, row3, row4, row5, row6, row7, row8
+		(bitfieldExtract(top_left, 0, 4) << 4)  | bitfieldExtract(top_right, 0, 4),
+		(bitfieldExtract(top_left, 4, 4) << 4)  | bitfieldExtract(top_right, 4, 4),
+		(bitfieldExtract(top_left, 8, 4) << 4)  | bitfieldExtract(top_right, 8, 4),
+		(bitfieldExtract(top_left, 12, 4) << 4) | bitfieldExtract(top_right, 12, 4),
+		(bitfieldExtract(bot_left, 0, 4) << 4)  | bitfieldExtract(bot_right, 0, 4),
+		(bitfieldExtract(bot_left, 4, 4) << 4)  | bitfieldExtract(bot_right, 4, 4),
+		(bitfieldExtract(bot_left, 8, 4) << 4)  | bitfieldExtract(bot_right, 8, 4),
+		(bitfieldExtract(bot_left, 12, 4) << 4) | bitfieldExtract(bot_right, 12, 4)
 	};
 
-	uint64_t r_mask = 0xC0 >> int(round(weight.x * 4.0f));
-	uint64_t g_mask = 0x60 >> int(round(weight.x * 4.0f));
-	uint64_t b_mask = 0x30 >> int(round(weight.x * 4.0f));
+	// Three masks for R, G, B subpixel bit counts
+	// R = 11000000, B = 01100000, B = 00110000
+	u64vec3 masks = u64vec3(
+		0xC0 >> int(round(weight.x * 4.0f)),
+		0x60 >> int(round(weight.x * 4.0f)),
+		0x30 >> int(round(weight.x * 4.0f))
+	);
 
 	int start_row = int(floor(weight.y * 4.0f));
 	int end_row = start_row + 4;
-	int64_t r_bits = 0;
-	int64_t g_bits = 0;
-	int64_t b_bits = 0;
+	i64vec3 bits = i64vec3(0);
 	for(int i = start_row; i < end_row; ++i) {
-		r_bits += bitCount(r_mask & rows[i]);
-		g_bits += bitCount(g_mask & rows[i]);
-		b_bits += bitCount(b_mask & rows[i]);
+		bits += bitCount(masks & rows[i]);
 	}
 
-	return vec3(double(r_bits) / 8.0f, double(g_bits) / 8.0f, double(b_bits) / 8.0f);
+	return vec3(vec3(bits) / vec3(8.0f));
 }
 
 void main() {
 	vec2 pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height) + in_glyph_offset * vec2(pc.glyph_atlas_width, pc.glyph_atlas_height);
-
 	vec2 texel_origin = floor(pixel_origin);
 	vec2 weight = pixel_origin - texel_origin;
 
-	vec3 subpixel_left = get_subpixel_contributions(pixel_origin + vec2(-1.0f, 0.0f));
-	vec3 subpixel_middle = get_subpixel_contributions(pixel_origin);
-	vec3 subpixel_right = get_subpixel_contributions(pixel_origin + vec2(1.0f, 0.0f));
+	vec2 glyph_atlas_size = textureSize(glyph_atlas, 0);
+	vec2 texel_center = texel_origin + vec2(1.0f);
+
+	uvec4 left_side_texel_values = textureGather(glyph_atlas, (texel_center - vec2(1.0f, 0.0f)) / glyph_atlas_size);
+	uvec4 right_side_texel_values = textureGather(glyph_atlas, (texel_center + vec2(1.0f, 0.0f)) / glyph_atlas_size);
+
+	uint left_top_right = left_side_texel_values.z;
+	uint left_top_left = left_side_texel_values.w;
+	uint left_bot_left = left_side_texel_values.x;
+	uint left_bot_right = left_side_texel_values.y;
+
+	uint right_top_right = right_side_texel_values.z;
+	uint right_top_left = right_side_texel_values.w;
+	uint right_bot_left = right_side_texel_values.x;
+	uint right_bot_right = right_side_texel_values.y;
+
+	vec3 subpixel_left = get_subpixel_contributions(weight, left_top_left, left_top_right, left_bot_left, left_bot_right);
+	vec3 subpixel_middle = get_subpixel_contributions(weight, left_top_right, right_top_left, left_bot_right, right_bot_left);
+	vec3 subpixel_right = get_subpixel_contributions(weight, right_top_left, right_top_right, right_bot_left, right_bot_right);
 
 	float R = subpixel_left.y * 0.11111 +
 		subpixel_left.z * 0.22222 +
