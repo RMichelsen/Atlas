@@ -196,12 +196,12 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 	float height = ttfp_get_height(font_face);
 	float ascent = ttfp_get_ascender(font_face);
 
-	float font_pt_size = 12.0f;
+	float font_pt_size = 36.0f;
 	float font_scale = font_pt_size * GetDpiForSystem() / (72.0f * ttfp_get_units_per_em(font_face));
 
-	// Ensure that the baseline falls on a round pixel
+	// Ensure that the baseline falls exactly in the middle of a pixel
 	float baseline = ttfp_get_ascender(font_face);
-	float target = ceilf(baseline * font_scale);
+	float target = ceilf(font_scale * baseline) + 0.5f;
 	font_scale = target / baseline;
 
 	// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent

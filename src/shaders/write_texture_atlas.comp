@@ -1,4 +1,5 @@
 #version 460
+#extension GL_EXT_debug_printf : enable
 
 #define NUM_PRINTABLE_CHARS 95
 
@@ -51,7 +52,7 @@ void main() {
 		vec2 p2 = l.p2;
 		for(uint y = 0; y < 4; ++y) {
 			for(uint x = 0; x < 4; ++x) {
-				vec2 p = pixel_top_left + 0.2f + vec2(x * 0.2f, y * 0.2f);
+				vec2 p = pixel_top_left + vec2(0.2f) + vec2(x * 0.2f, y * 0.2f);
 			
 				if(p.y < p2.y && p.y >= p1.y) {
 					float dx = p2.x - p1.x;

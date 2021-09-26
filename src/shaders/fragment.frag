@@ -19,9 +19,7 @@ layout(location = 1) flat in uvec2 in_glyph_offset;
 
 layout(location = 0) out vec4 out_color;
 
-void main() {
-	// TODO: Unsure why this ceil is necessary
-	vec2 pixel_origin = in_uv * ceil(vec2(pc.glyph_width, pc.glyph_height)) + in_glyph_offset * vec2(pc.glyph_atlas_width, pc.glyph_atlas_height);
+vec3 get_subpixel_contributions(vec2 pixel_origin) {
 	vec2 texel_origin = floor(pixel_origin);
 	vec2 weight = pixel_origin - texel_origin;
 
@@ -46,16 +44,54 @@ void main() {
 		row1, row2, row3, row4, row5, row6, row7, row8
 	};
 
-	uint64_t x_mask = 0xF0 >> int(round(weight.x * 4.0f));
+	uint64_t r_mask = 0xC0 >> int(round(weight.x * 4.0f));
+	uint64_t g_mask = 0x60 >> int(round(weight.x * 4.0f));
+	uint64_t b_mask = 0x30 >> int(round(weight.x * 4.0f));
 
 	int start_row = int(floor(weight.y * 4.0f));
 	int end_row = start_row + 4;
-	int64_t bits = 0;
+	int64_t r_bits = 0;
+	int64_t g_bits = 0;
+	int64_t b_bits = 0;
 	for(int i = start_row; i < end_row; ++i) {
-		bits += bitCount(x_mask & rows[i]);
+		r_bits += bitCount(r_mask & rows[i]);
+		g_bits += bitCount(g_mask & rows[i]);
+		b_bits += bitCount(b_mask & rows[i]);
 	}
 
-	double coverage = double(bits) / 16.0;
+	return vec3(double(r_bits) / 8.0f, double(g_bits) / 8.0f, double(b_bits) / 8.0f);
+}
+
+void main() {
+	vec2 pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height) + in_glyph_offset * vec2(pc.glyph_atlas_width, pc.glyph_atlas_height);
+
+	vec2 texel_origin = floor(pixel_origin);
+	vec2 weight = pixel_origin - texel_origin;
+
+	vec3 subpixel_left = get_subpixel_contributions(pixel_origin + vec2(-1.0f, 0.0f));
+	vec3 subpixel_middle = get_subpixel_contributions(pixel_origin);
+	vec3 subpixel_right = get_subpixel_contributions(pixel_origin + vec2(1.0f, 0.0f));
+
+	float R = subpixel_left.y * 0.11111 +
+		subpixel_left.z * 0.22222 +
+		subpixel_middle.x * 0.33333 +
+		subpixel_middle.y * 0.22222 +
+		subpixel_middle.z * 0.11111;
+
+	float G = subpixel_left.z * 0.11111 +
+		subpixel_middle.x * 0.22222 +
+		subpixel_middle.y * 0.33333 +
+		subpixel_middle.z * 0.22222 +
+		subpixel_right.x * 0.11111;
+
+	float B = subpixel_middle.x * 0.11111 +
+		subpixel_middle.y * 0.22222 +
+		subpixel_middle.z * 0.33333 +
+		subpixel_right.x * 0.22222 +
+		subpixel_right.y * 0.11111;
+
+	vec3 coverage = vec3(R, G, B);
+
 	vec3 text_color = vec3(0.83137f, 0.83137f, 0.83137f);
 	vec3 bg_color = vec3(0.117647f, 0.117647f, 0.117647f);
 
@@ -64,3 +100,4 @@ void main() {
 	vec3 gamma_corrected_result = pow(raw_result, vec3(1.0f / gamma));
 	out_color = vec4(gamma_corrected_result, 1.0f);
 }
+

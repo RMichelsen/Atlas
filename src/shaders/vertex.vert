@@ -28,7 +28,7 @@ void main() {
 		(pos == 1 || pos == 2 || pos == 4) ? pc.glyph_height : 0.0f
 	);
 	uvec2 cell_offset = uvec2(bitfieldExtract(in_vertex, 19, 8), bitfieldExtract(in_vertex, 27, 5));
-	vec2 pos_offset = vec2(pc.glyph_width, pc.glyph_atlas_height) * cell_offset;
+	vec2 pos_offset = vec2(pc.glyph_width, pc.glyph_height) * cell_offset;
 
 	gl_Position = vec4((position + pos_offset) * vec2(2.0f / pc.display_size.x, 2.0f / pc.display_size.y) - vec2(1.0f), 0.0f, 1.0f);  
 	out_uv = uv_coords[bitfieldExtract(in_vertex, 3, 3)]; 
