@@ -2,14 +2,16 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_float64 : enable
+#extension GL_EXT_control_flow_attributes : enable
 #extension GL_EXT_debug_printf : enable
 
 layout(push_constant) uniform PushConstants {
 	vec2 display_size;
 	float glyph_width;
 	float glyph_height;
-	uint glyph_atlas_width;
-	uint glyph_atlas_height;
+	uint cell_width;
+	uint cell_height;
+	uint glyph_atlas_size;
 } pc;
 
 layout(binding = 0) uniform usampler2D glyph_atlas;
@@ -20,6 +22,10 @@ layout(location = 1) flat in uvec2 in_glyph_offset;
 layout(location = 0) out vec4 out_color;
 
 vec3 get_subpixel_contributions(vec2 weight, uint top_left, uint top_right, uint bot_left, uint bot_right) {
+	if(top_left == 0 && top_right == 0 && bot_left == 0 && bot_right == 0) {
+		return vec3(0.0);
+	}
+
 	uint64_t rows[] = {
 		(bitfieldExtract(top_left, 0, 4) << 4)  | bitfieldExtract(top_right, 0, 4),
 		(bitfieldExtract(top_left, 4, 4) << 4)  | bitfieldExtract(top_right, 4, 4),
@@ -33,32 +39,31 @@ vec3 get_subpixel_contributions(vec2 weight, uint top_left, uint top_right, uint
 
 	// Three masks for R, G, B subpixel bit counts
 	// R = 11000000, B = 01100000, B = 00110000
+	int start_col = int(round(weight.x * 4.0));
 	u64vec3 masks = u64vec3(
-		0xC0 >> int(round(weight.x * 4.0f)),
-		0x60 >> int(round(weight.x * 4.0f)),
-		0x30 >> int(round(weight.x * 4.0f))
+		0xC0 >> start_col,
+		0x60 >> start_col,
+		0x30 >> start_col
 	);
 
-	int start_row = int(floor(weight.y * 4.0f));
+	int start_row = int(floor(weight.y * 4.0));
 	int end_row = start_row + 4;
 	i64vec3 bits = i64vec3(0);
 	for(int i = start_row; i < end_row; ++i) {
 		bits += bitCount(masks & rows[i]);
 	}
 
-	return vec3(vec3(bits) / vec3(8.0f));
+	return vec3(vec3(bits) / vec3(8.0));
 }
 
 void main() {
-	vec2 pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height) + in_glyph_offset * vec2(pc.glyph_atlas_width, pc.glyph_atlas_height);
+	vec2 pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height) + in_glyph_offset * vec2(pc.cell_width, pc.cell_height);
 	vec2 texel_origin = floor(pixel_origin);
 	vec2 weight = pixel_origin - texel_origin;
 
-	vec2 glyph_atlas_size = textureSize(glyph_atlas, 0);
-	vec2 texel_center = texel_origin + vec2(1.0f);
-
-	uvec4 left_side_texel_values = textureGather(glyph_atlas, (texel_center - vec2(1.0f, 0.0f)) / glyph_atlas_size);
-	uvec4 right_side_texel_values = textureGather(glyph_atlas, (texel_center + vec2(1.0f, 0.0f)) / glyph_atlas_size);
+	vec2 texel_center = texel_origin + vec2(1.0);
+	uvec4 left_side_texel_values = textureGather(glyph_atlas, (texel_center - vec2(1.0, 0.0)) / pc.glyph_atlas_size);
+	uvec4 right_side_texel_values = textureGather(glyph_atlas, (texel_center + vec2(1.0, 0.0)) / pc.glyph_atlas_size);
 
 	uint left_top_right = left_side_texel_values.z;
 	uint left_top_left = left_side_texel_values.w;
@@ -94,12 +99,12 @@ void main() {
 
 	vec3 coverage = vec3(R, G, B);
 
-	vec3 text_color = vec3(0.83137f, 0.83137f, 0.83137f);
-	vec3 bg_color = vec3(0.117647f, 0.117647f, 0.117647f);
+	vec3 text_color = vec3(0.83137, 0.83137, 0.83137);
+	vec3 bg_color = vec3(0.117647, 0.117647, 0.117647);
 
-	float gamma = 1.8f;
+	float gamma = 1.8;
 	vec3 raw_result = mix(pow(bg_color, vec3(gamma)), pow(text_color, vec3(gamma)), vec3(coverage));
-	vec3 gamma_corrected_result = pow(raw_result, vec3(1.0f / gamma));
-	out_color = vec4(gamma_corrected_result, 1.0f);
+	vec3 gamma_corrected_result = pow(raw_result, vec3(1.0 / gamma));
+	out_color = vec4(gamma_corrected_result, 1.0);
 }
 

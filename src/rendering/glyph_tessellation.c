@@ -166,7 +166,7 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 	float height = ttfp_get_height(font_face);
 	float ascent = ttfp_get_ascender(font_face);
 
-	float font_pt_size = 36.0f;
+	float font_pt_size = 26.0f;
 	float font_scale = font_pt_size * GetDpiForSystem() / (72.0f * ttfp_get_units_per_em(font_face));
 
 	// Ensure that the baseline falls exactly in the middle of a pixel
@@ -189,11 +189,11 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 	float glyph_width = font_scale * ttfp_get_glyph_hor_advance(font_face, ttfp_get_glyph_index(font_face, (u32)'M'));
 	float glyph_height = font_scale * height;
 
-	GlyphPushConstants glyph_push_constants = {
+	GlyphMetrics glyph_metrics = {
 		.glyph_width = glyph_width,
 		.glyph_height = glyph_height,
-		.glyph_atlas_width = (u32)ceilf(glyph_width) + 1,
-		.glyph_atlas_height = (u32)ceilf(glyph_height) + 1
+		.cell_width = (u32)ceilf(glyph_width) + 1,
+		.cell_height = (u32)ceilf(glyph_height) + 1
 	};
 
 	free(font_data);
@@ -204,6 +204,6 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 		.num_lines = tessellation_context.num_lines,
 		.glyph_offsets = glyph_offsets,
 		.num_glyphs = NUM_PRINTABLE_CHARS,
-		.glyph_push_constants = glyph_push_constants
+		.metrics = glyph_metrics
 	};
 }

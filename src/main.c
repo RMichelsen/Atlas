@@ -56,6 +56,22 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 
 	Renderer renderer = renderer_initialize(hinstance, hwnd);
 
+	DrawCommands draw_commands;
+	draw_commands.commands = malloc(30 * sizeof(DrawCommand));
+	draw_commands.num_commands = 30;
+	for(int i = 0; i < 30; ++i) {
+		draw_commands.commands[i] = (DrawCommand) {
+			.type = DRAW_COMMAND_TEXT,
+			.text = {
+				.content = "This is a stress test, This is a stress test, This is a stress test, This is a stress test",
+				.col = 0,
+				.row = i
+			}
+		};
+	}
+
+	renderer_update(&renderer, draw_commands);
+
 	MSG msg;
 	while(1) {
 		while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -70,7 +86,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 			continue;
 		}
 		else {
-			renderer_update(hwnd, &renderer);
+			renderer_draw(&renderer);
 		}
 	}
 

@@ -17,8 +17,8 @@ struct GlyphOffset {
 layout(push_constant) uniform PushConstants {
 	float glyph_width;
 	float glyph_height;
-	uint glyph_atlas_width;
-	uint glyph_atlas_height;
+	uint cell_width;
+	uint cell_height;
 } pc;
 
 layout(binding = 0, r16ui) uniform writeonly uimage2D glyph_atlas;
@@ -33,20 +33,20 @@ layout (local_size_x = 1, local_size_y = 1) in;
 void main() {
 	uvec2 id = gl_GlobalInvocationID.xy;
 
-	uint num_glyphs_per_row = uint(imageSize(glyph_atlas).x / pc.glyph_atlas_width);
-	if(id.x > pc.glyph_atlas_width * num_glyphs_per_row) {
+	uint num_glyphs_per_row = uint(imageSize(glyph_atlas).x / pc.cell_width);
+	if(id.x > pc.cell_width * num_glyphs_per_row) {
 		return;
 	}
-	uint glyph_row_index = uint(id.x / pc.glyph_atlas_width);
-	uint glyph_col_index = uint(id.y / pc.glyph_atlas_height);
+	uint glyph_row_index = uint(id.x / pc.cell_width);
+	uint glyph_col_index = uint(id.y / pc.cell_height);
 	uint char_index = glyph_col_index * num_glyphs_per_row + glyph_row_index;
 	if(char_index >= NUM_PRINTABLE_CHARS) {
 		return;
 	}
 
 	vec2 pixel_top_left = {
-		id.x - pc.glyph_atlas_width * floor(id.x / pc.glyph_atlas_width),
-		id.y - pc.glyph_atlas_height * floor(id.y / pc.glyph_atlas_height)
+		id.x - pc.cell_width * floor(id.x / pc.cell_width),
+		id.y - pc.cell_height * floor(id.y / pc.cell_height)
 	};
 
 	uint result = 0;
@@ -56,12 +56,12 @@ void main() {
 		vec2 p2 = l.p2;
 		for(uint y = 0; y < 4; ++y) {
 			for(uint x = 0; x < 4; ++x) {
-				vec2 p = pixel_top_left + vec2(0.2f) + vec2(x * 0.2f, y * 0.2f);
+				vec2 p = pixel_top_left + vec2(0.2) + vec2(x * 0.2, y * 0.2);
 			
 				if(p.y < p2.y && p.y >= p1.y) {
 					float dx = p2.x - p1.x;
 					float dy = p2.y - p1.y;
-					if(dy == 0.0f) {
+					if(dy == 0.0) {
 					   continue;
 					}
 					float line_x = (p.y - p1.y) * (dx / dy) + p1.x;

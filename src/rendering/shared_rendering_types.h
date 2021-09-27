@@ -61,15 +61,27 @@ typedef struct MappedBuffer {
 typedef struct GlyphPushConstants {
 	float glyph_width;
 	float glyph_height;
-	u32 glyph_atlas_width;
-	u32 glyph_atlas_height;
+	u32 cell_width;
+	u32 cell_height;
 } GlyphPushConstants;
+
+typedef struct GlyphMetrics {
+	float glyph_width;
+	float glyph_height;
+	u32 cell_width;
+	u32 cell_height;
+} GlyphMetrics;
+
+typedef struct GlyphAtlas {
+	Image atlas;
+	GlyphMetrics metrics;
+} GlyphAtlas;
 
 typedef struct GlyphResources {
 	DescriptorSet descriptor_set;
 
-	GlyphPushConstants glyph_push_constants;
-	Image glyph_atlas;
+	GlyphAtlas glyph_atlas;
+
 	MappedBuffer glyph_lines_buffer;
 	MappedBuffer glyph_offsets_buffer;
 
@@ -80,17 +92,18 @@ typedef struct GraphicsPushConstants {
 	float display_size[2];
 	float glyph_width;
 	float glyph_height;
-	u32 glyph_atlas_width;
-	u32 glyph_atlas_height;
+	u32 cell_width;
+	u32 cell_height;
+	u32 glyph_atlas_size;
 } GraphicsPushConstants;
 
 typedef struct Vertex {
-	u32 pos : 3;
-	u32 uv : 3;
-	u32 glyph_offset_x : 8;
-	u32 glyph_offset_y : 5;
-	u32 cell_offset_x : 8;
-	u32 cell_offset_y : 5;
+	u64 pos : 3;
+	u64 uv : 3;
+	u64 glyph_offset_x : 13;
+	u64 glyph_offset_y : 13;
+	u64 cell_offset_x : 16;
+	u64 cell_offset_y : 16;
 } Vertex;
 
 typedef enum ShaderType {
@@ -122,6 +135,8 @@ typedef struct Renderer {
 	Pipeline graphics_pipeline;
 	MappedBuffer vertex_buffer;
 
+	u32 active_vertex_count;
+
 	GlyphResources glyph_resources;
 
 #ifndef NDEBUG
@@ -150,6 +165,33 @@ typedef struct TesselatedGlyphs {
 	u64 num_lines;
 	GlyphOffset *glyph_offsets;
 	u64 num_glyphs;
-	GlyphPushConstants glyph_push_constants;
+	GlyphMetrics metrics;
 } TesselatedGlyphs;
 
+typedef enum DrawCommandType {
+	DRAW_COMMAND_TEXT,
+	DRAW_COMMAND_RECT
+} DrawCommandType;
+
+typedef struct DrawCommandText {
+	const char *content;
+	u32 row;
+	u32 col;
+} DrawCommandText;
+
+typedef struct DrawCommandRect {
+	u32 dummy;
+} DrawCommandRect;
+
+typedef struct DrawCommand {
+	DrawCommandType type;
+	union {
+		DrawCommandText text;
+		DrawCommandRect rect;
+	};
+} DrawCommand;
+
+typedef struct DrawCommands {
+	DrawCommand *commands;
+	u32 num_commands;
+} DrawCommands;

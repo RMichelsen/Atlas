@@ -453,7 +453,7 @@ Pipeline create_rasterization_pipeline(VkInstance instance, LogicalDevice logica
 			.pVertexAttributeDescriptions = &(VkVertexInputAttributeDescription) {
 				.location = 0,
 				.binding = 0,
-				.format = VK_FORMAT_R32_UINT,
+				.format = VK_FORMAT_R32G32_UINT,
 				.offset = 0
 			}
 		},
@@ -772,8 +772,8 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 
 	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs(hwnd, L"Consolas");
 
-	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_width);
-	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.glyph_push_constants.glyph_height);
+	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_width);
+	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_height);
 	assert(chars_per_row * chars_per_col >= NUM_PRINTABLE_CHARS);
 
 	MappedBuffer glyph_lines_buffer = create_mapped_buffer(logical_device.handle,
@@ -826,8 +826,10 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 			.layout = descriptor_set_layout,
 			.pool = descriptor_pool
 		},
-		.glyph_push_constants = tesselated_glyphs.glyph_push_constants,
-		.glyph_atlas = glyph_atlas,
+		.glyph_atlas = {
+			.atlas = glyph_atlas,
+			.metrics = tesselated_glyphs.metrics
+		},
 		.glyph_lines_buffer = glyph_lines_buffer,
 		.glyph_offsets_buffer = glyph_offsets_buffer,
 		.pipeline = {
@@ -906,7 +908,7 @@ void write_descriptors(LogicalDevice logical_device, GlyphResources *glyph_resou
 			.descriptorCount = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
 			.pImageInfo = &(VkDescriptorImageInfo) {
-				.imageView = glyph_resources->glyph_atlas.view,
+				.imageView = glyph_resources->glyph_atlas.atlas.view,
 				.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 			}
 		},
@@ -945,7 +947,7 @@ void write_descriptors(LogicalDevice logical_device, GlyphResources *glyph_resou
 		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 		.pImageInfo = &(VkDescriptorImageInfo) {
 			.sampler = texture_sampler,
-			.imageView = glyph_resources->glyph_atlas.view,
+			.imageView = glyph_resources->glyph_atlas.atlas.view,
 			.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 		}
 	};
@@ -955,46 +957,53 @@ void write_descriptors(LogicalDevice logical_device, GlyphResources *glyph_resou
 void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph_resources, VkCommandPool command_pool) {
 	VkCommandBuffer command_buffer = start_one_time_command_buffer(logical_device, command_pool);
 
-	transition_glyph_image(logical_device, command_buffer, glyph_resources->glyph_atlas);
+	transition_glyph_image(logical_device, command_buffer, glyph_resources->glyph_atlas.atlas);
 
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, glyph_resources->pipeline.handle);
 	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, glyph_resources->pipeline.layout,
 		0, 1, &glyph_resources->descriptor_set.handle, 0, NULL);
 
+	GlyphPushConstants push_constants = {
+		.glyph_width = glyph_resources->glyph_atlas.metrics.glyph_width,
+		.glyph_height = glyph_resources->glyph_atlas.metrics.glyph_height,
+		.cell_width = glyph_resources->glyph_atlas.metrics.cell_width,
+		.cell_height = glyph_resources->glyph_atlas.metrics.cell_height
+	};
+
 	vkCmdPushConstants(command_buffer, glyph_resources->pipeline.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
-		sizeof(GlyphPushConstants), &glyph_resources->glyph_push_constants);
+		sizeof(GlyphPushConstants), &push_constants);
 	vkCmdDispatch(command_buffer, GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, 1);
 
 	end_one_time_command_buffer(logical_device, command_buffer, command_pool);
 }
 
-void add_string(const char *str, MappedBuffer vertex_buffer, GlyphResources *glyph_resources) {
-	u64 size = strlen(str) * sizeof(Vertex) * 6;
-	Vertex *vertices = (Vertex *)malloc(size);
-	u32 offset = 0;
-
-	u32 glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.glyph_atlas_width;
-
-	for(int i = 0; i < strlen(str); ++i) {
-		u32 glyph_number = (u32)str[i] - 0x20;
-
-		vertices[offset++] = (Vertex) { .pos = 0, .uv = 0, .glyph_offset_x = glyph_number % glyphs_per_row,
-			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-		vertices[offset++] = (Vertex) { .pos = 1, .uv = 1, .glyph_offset_x = glyph_number % glyphs_per_row,
-			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-		vertices[offset++] = (Vertex) { .pos = 2, .uv = 2, .glyph_offset_x = glyph_number % glyphs_per_row,
-			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-		vertices[offset++] = (Vertex) { .pos = 3, .uv = 3, .glyph_offset_x = glyph_number % glyphs_per_row,
-			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-		vertices[offset++] = (Vertex) { .pos = 4, .uv = 4, .glyph_offset_x = glyph_number % glyphs_per_row,
-			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-		vertices[offset++] = (Vertex) { .pos = 5, .uv = 5, .glyph_offset_x = glyph_number % glyphs_per_row,
-			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-	}
-
-	memcpy(vertex_buffer.data, vertices, size);
-	free(vertices);
-}
+//void add_string(const char *str, MappedBuffer vertex_buffer, GlyphResources *glyph_resources) {
+//	u64 size = strlen(str) * sizeof(Vertex) * 6;
+//	Vertex *vertices = (Vertex *)malloc(size);
+//	u32 offset = 0;
+//
+//	u32 glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.cell_width;
+//
+//	for(int i = 0; i < strlen(str); ++i) {
+//		u32 glyph_number = (u32)str[i] - 0x20;
+//
+//		vertices[offset++] = (Vertex) { .pos = 0, .uv = 0, .glyph_offset_x = glyph_number % glyphs_per_row,
+//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
+//		vertices[offset++] = (Vertex) { .pos = 1, .uv = 1, .glyph_offset_x = glyph_number % glyphs_per_row,
+//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
+//		vertices[offset++] = (Vertex) { .pos = 2, .uv = 2, .glyph_offset_x = glyph_number % glyphs_per_row,
+//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
+//		vertices[offset++] = (Vertex) { .pos = 3, .uv = 3, .glyph_offset_x = glyph_number % glyphs_per_row,
+//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
+//		vertices[offset++] = (Vertex) { .pos = 4, .uv = 4, .glyph_offset_x = glyph_number % glyphs_per_row,
+//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
+//		vertices[offset++] = (Vertex) { .pos = 5, .uv = 5, .glyph_offset_x = glyph_number % glyphs_per_row,
+//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
+//	}
+//
+//	memcpy(vertex_buffer.data, vertices, size);
+//	free(vertices);
+//}
 
 Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 	VkInstance instance = create_instance();
@@ -1021,9 +1030,7 @@ Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 	MappedBuffer vertex_buffer = create_mapped_buffer(logical_device.handle,
 		physical_device.memory_properties,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		sizeof(Vertex) * 1024 * 64);
-
-	add_string("Well, this is a nice string of words", vertex_buffer, &glyph_resources);
+		sizeof(Vertex) * 1024 * 1024 * 64);
 
 	Renderer renderer = {
 		.hwnd = hwnd,
@@ -1038,6 +1045,7 @@ Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 		.render_pass = render_pass,
 		.graphics_pipeline = graphics_pipeline,
 		.vertex_buffer = vertex_buffer,
+		.active_vertex_count = 0,
 		.glyph_resources = glyph_resources,
 #ifndef NDEBUG
 		.debug_messenger = debug_messenger
@@ -1053,7 +1061,35 @@ void renderer_resize(Renderer *renderer) {
 		renderer->logical_device, &renderer->swapchain);
 }
 
-void renderer_update(HWND hwnd, Renderer *renderer) {
+void renderer_update(Renderer *renderer, DrawCommands draw_commands) {
+	renderer->active_vertex_count = 0;
+	u32 glyphs_per_row = GLYPH_ATLAS_SIZE / renderer->glyph_resources.glyph_atlas.metrics.cell_width;
+
+	Vertex *vertex_data = (Vertex *)renderer->vertex_buffer.data;
+	for(u32 i = 0; i < draw_commands.num_commands; ++i) {
+		DrawCommand command = draw_commands.commands[i];
+		if(command.type == DRAW_COMMAND_TEXT) {
+			for(int j = 0; j < strlen(command.text.content); ++j) {
+				u32 glyph_index = (u32)command.text.content[j] - 0x20;
+				for(int k = 0; k < 6; ++k) {
+					vertex_data[renderer->active_vertex_count++] = (Vertex) {
+						.pos = k,
+						.uv = k,
+						.glyph_offset_x = glyph_index % glyphs_per_row,
+						.glyph_offset_y = glyph_index / glyphs_per_row,
+						.cell_offset_x = command.text.col + j,
+						.cell_offset_y = command.text.row
+					};
+					
+				}
+			}
+		}
+	}
+
+	free(draw_commands.commands);
+}
+
+void renderer_draw(Renderer *renderer) {
 	static u32 resource_index = 0;
 
 	VK_CHECK(vkWaitForFences(renderer->logical_device.handle, 1, &renderer->fences[resource_index], VK_TRUE, UINT64_MAX));
@@ -1125,16 +1161,17 @@ void renderer_update(HWND hwnd, Renderer *renderer) {
 			(float)renderer->swapchain.extent.width,
 			(float)renderer->swapchain.extent.height
 		},
-		.glyph_width = renderer->glyph_resources.glyph_push_constants.glyph_width,
-		.glyph_height = renderer->glyph_resources.glyph_push_constants.glyph_height,
-		.glyph_atlas_width = renderer->glyph_resources.glyph_push_constants.glyph_atlas_width,
-		.glyph_atlas_height = renderer->glyph_resources.glyph_push_constants.glyph_atlas_height
+		.glyph_atlas_size = GLYPH_ATLAS_SIZE,
+		.glyph_width = renderer->glyph_resources.glyph_atlas.metrics.glyph_width,
+		.glyph_height = renderer->glyph_resources.glyph_atlas.metrics.glyph_height,
+		.cell_width = renderer->glyph_resources.glyph_atlas.metrics.cell_width,
+		.cell_height = renderer->glyph_resources.glyph_atlas.metrics.cell_height
 	};
 	vkCmdPushConstants(renderer->command_buffers[resource_index], renderer->graphics_pipeline.layout,
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
 		sizeof(GraphicsPushConstants), &graphics_push_constants);
 
-	vkCmdDraw(renderer->command_buffers[resource_index], (u32)(6 * strlen("Well, this is a nice string of words")), 1, 0, 0);
+	vkCmdDraw(renderer->command_buffers[resource_index], renderer->active_vertex_count, 1, 0, 0);
 
 	vkCmdEndRenderPass(renderer->command_buffers[resource_index]);
 
@@ -1210,9 +1247,9 @@ void renderer_destroy(Renderer *renderer) {
 	// Destroy Vulkan glyph resources
 	vkDestroyDescriptorSetLayout(device, renderer->glyph_resources.descriptor_set.layout, NULL);
 	vkDestroyDescriptorPool(device, renderer->glyph_resources.descriptor_set.pool, NULL);
-	vkDestroyImageView(device, renderer->glyph_resources.glyph_atlas.view, NULL);
-	vkDestroyImage(device, renderer->glyph_resources.glyph_atlas.handle, NULL);
-	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.memory, NULL);
+	vkDestroyImageView(device, renderer->glyph_resources.glyph_atlas.atlas.view, NULL);
+	vkDestroyImage(device, renderer->glyph_resources.glyph_atlas.atlas.handle, NULL);
+	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.atlas.memory, NULL);
 	vkDestroyBuffer(device, renderer->glyph_resources.glyph_lines_buffer.handle, NULL);
 	vkFreeMemory(device, renderer->glyph_resources.glyph_lines_buffer.memory, NULL);
 	vkDestroyBuffer(device, renderer->glyph_resources.glyph_offsets_buffer.handle, NULL);

@@ -16,6 +16,6 @@
   	<Message Importance="High" Text="---------- Compiling shaders ----------" />
     <!-- Hacky way to ensure creation of required directories -->
 	<MakeDir Directories="@(GLSLShader -> '%(RelativeDir)'->Replace('src\shaders', 'bin\shaders'))"/>
-	<Exec Command="@(GLSLShader -> '$(VULKAN_SDK)\Bin\glslangValidator.exe %(FullPath) -V --target-env vulkan1.2 -o %(RelativeDir)%(Filename)%(Extension).spv'->Replace(' src\shaders', ' bin\shaders'), ' &#38; ')" />
+	<Exec Command="@(GLSLShader -> '$(VULKAN_SDK)\Bin\glslangValidator.exe %(FullPath) -g -V --target-env vulkan1.2 -o %(RelativeDir)%(Filename)%(Extension).spv'->Replace(' src\shaders', ' bin\shaders'), ' &#38; ')" />
   </Target>
 </Project>
