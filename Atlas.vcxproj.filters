@@ -24,6 +24,9 @@
     <ClCompile Include="src\rendering\glyph_tessellation.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\editor\editor.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\common_types.h">
@@ -39,6 +42,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dependencies\ttfparser\include\ttfparser\ttfparser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\editor\editor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\editor\shared_editor_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

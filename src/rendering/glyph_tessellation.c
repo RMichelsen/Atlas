@@ -1,17 +1,19 @@
 #include "glyph_tessellation.h"
 
+#include <windows.h>
+
 #include "ttfparser/ttfparser.h"
 
 #define MAX_TOTAL_GLYPH_LINES 65536
 
 typedef struct TessellationContext {
-	Line *lines;
+	GlyphLine *lines;
 	u32 num_lines;
-	Point last_point;
+	GlyphPoint last_point;
 } TessellationContext;
 
 // https://members.loria.fr/samuel.hornus/quadratic-arc-length.html
-float get_bezier_arc_length(Point a, Point b, Point c) {
+float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 	float Bx = b.x - a.x;
 	float By = b.y - a.y;
 	float Fx = c.x - b.x;
@@ -31,7 +33,7 @@ float get_bezier_arc_length(Point a, Point b, Point c) {
 	return l1 + l2 * l3;
 }
 
-void add_straight_line(Point p1, Point p2, TessellationContext *context) {
+void add_straight_line(GlyphPoint p1, GlyphPoint p2, TessellationContext *context) {
 	float length = sqrtf((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
 	u32 number_of_steps = (u32)ceilf(length / 10.0f);
 	float step_fraction = 1.0f / number_of_steps;
@@ -51,13 +53,13 @@ void add_straight_line(Point p1, Point p2, TessellationContext *context) {
 
 		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
 		context->lines[context->num_lines++] =
-			ay > by ? (Line) { { ax, ay }, { bx, by } } :
-			(Line) { { bx, by }, { ax, ay }
+			ay > by ? (GlyphLine) { { ax, ay }, { bx, by } } :
+			(GlyphLine) { { bx, by }, { ax, ay }
 		};
 	}
 }
 
-void add_quadratic_spline(Point p1, Point p2, Point p3, TessellationContext *context) {
+void add_quadratic_spline(GlyphPoint p1, GlyphPoint p2, GlyphPoint p3, TessellationContext *context) {
 	float length = get_bezier_arc_length(p1, p2, p3);
 	u32 number_of_steps = (u32)ceilf(length / 10.0f);
 	float step_fraction = 1.0f / number_of_steps;
@@ -77,34 +79,34 @@ void add_quadratic_spline(Point p1, Point p2, Point p3, TessellationContext *con
 
 		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
 		context->lines[context->num_lines++] =
-			ay > by ? (Line) { { ax, ay }, { bx, by } } :
-			(Line) { { bx, by }, { ax, ay }
+			ay > by ? (GlyphLine) { { ax, ay }, { bx, by } } :
+			(GlyphLine) { { bx, by }, { ax, ay }
 		};
 	}
 }
 
 void outline_move_to(float x, float y, void *data) {
 	TessellationContext *context = (TessellationContext *)data;
-	context->last_point = (Point) { x, y };
+	context->last_point = (GlyphPoint) { x, y };
 }
 void outline_line_to(float x, float y, void *data) {
 	TessellationContext *context = (TessellationContext *)data;
 	add_straight_line(
 		context->last_point,
-		(Point) { x, y },
+		(GlyphPoint) { x, y },
 		context
 	);
-	context->last_point = (Point) { x, y };
+	context->last_point = (GlyphPoint) { x, y };
 }
 void outline_quad_to(float x1, float y1, float x, float y, void *user) {
 	TessellationContext *context = (TessellationContext *)user;
 	add_quadratic_spline(
 		context->last_point,
-		(Point) { x1, y1 },
-		(Point) { x, y },
+		(GlyphPoint) { x1, y1 },
+		(GlyphPoint) { x, y },
 		context
 	);
-	context->last_point = (Point) { x, y };
+	context->last_point = (GlyphPoint) { x, y };
 }
 void outline_curve_to(float x1, float y1, float x2, float y2,
 	float x, float y, void *data) {
@@ -120,8 +122,8 @@ static ttfp_outline_builder outline_builder = {
 	.close_path = outline_close_path
 };
 
-TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
-	FILE *file = fopen("C:/Windows/Fonts/consola.ttf", "rb");
+TesselatedGlyphs tessellate_glyphs(const char *path, u32 font_size) {
+	FILE *file = fopen(path, "rb");
 	fseek(file, 0, SEEK_END);
 	u32 file_size = ftell(file);
 	rewind(file);
@@ -138,7 +140,7 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 	assert(ttfp_is_monospaced(font_face));
 
 	TessellationContext tessellation_context = {
-		.lines = (Line *)malloc(MAX_TOTAL_GLYPH_LINES * sizeof(Line)),
+		.lines = (GlyphLine *)malloc(MAX_TOTAL_GLYPH_LINES * sizeof(GlyphLine)),
 		.num_lines = 0
 	};
 	GlyphOffset *glyph_offsets = (GlyphOffset *)malloc(NUM_PRINTABLE_CHARS * sizeof(GlyphOffset));
@@ -166,8 +168,7 @@ TesselatedGlyphs tessellate_glyphs(HWND hwnd, const wchar_t *font_name) {
 	float height = ttfp_get_height(font_face);
 	float ascent = ttfp_get_ascender(font_face);
 
-	float font_pt_size = 26.0f;
-	float font_scale = font_pt_size * GetDpiForSystem() / (72.0f * ttfp_get_units_per_em(font_face));
+	float font_scale = font_size * GetDpiForSystem() / (72.0f * ttfp_get_units_per_em(font_face));
 
 	// Ensure that the baseline falls exactly in the middle of a pixel
 	float baseline = ttfp_get_ascender(font_face);

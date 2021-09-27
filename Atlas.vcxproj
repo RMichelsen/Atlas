@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\editor\editor.c" />
     <ClCompile Include="src\rendering\glyph_tessellation.c" />
     <ClCompile Include="src\rendering\renderer.c" />
     <ClCompile Include="src\main.c" />
@@ -26,6 +27,8 @@
   <ItemGroup>
     <ClInclude Include="dependencies\ttfparser\include\ttfparser\ttfparser.h" />
     <ClInclude Include="src\core\common_types.h" />
+    <ClInclude Include="src\editor\editor.h" />
+    <ClInclude Include="src\editor\shared_editor_types.h" />
     <ClInclude Include="src\rendering\glyph_tessellation.h" />
     <ClInclude Include="src\rendering\renderer.h" />
     <ClInclude Include="src\rendering\shared_rendering_types.h" />

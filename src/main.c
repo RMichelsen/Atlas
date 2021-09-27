@@ -1,6 +1,7 @@
 #include <core/common_types.h>
 #include <windows.h>
 
+#include "editor/editor.h"
 #include "rendering/renderer.h"
 
 LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -56,22 +57,9 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 
 	Renderer renderer = renderer_initialize(hinstance, hwnd);
 
-	DrawCommands draw_commands;
-	draw_commands.commands = malloc(30 * sizeof(DrawCommand));
-	draw_commands.num_commands = 30;
-	for(int i = 0; i < 30; ++i) {
-		draw_commands.commands[i] = (DrawCommand) {
-			.type = DRAW_COMMAND_TEXT,
-			.text = {
-				.content = "This is a stress test, This is a stress test, This is a stress test, This is a stress test",
-				.col = 0,
-				.row = i
-			}
-		};
-	}
-
-	renderer_update(&renderer, draw_commands);
-
+	Editor editor = editor_initialize();
+	editor_open_file(&editor, "C:/Users/Rasmus/Desktop/Atlas/src/main.c");
+	
 	MSG msg;
 	while(1) {
 		while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -86,7 +74,24 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 			continue;
 		}
 		else {
-			renderer_draw(&renderer);
+			DrawCommands draw_commands;
+			draw_commands.commands = malloc(editor.main_document.num_lines * sizeof(DrawCommand));
+			draw_commands.num_commands = editor.main_document.num_lines;
+			for(u32 i = 0; i < editor.main_document.num_lines; ++i) {
+				draw_commands.commands[i] = (DrawCommand) {
+					.type = DRAW_COMMAND_TEXT,
+					.text = {
+						.content = editor.main_document.lines[i].content,
+						.length = editor.main_document.lines[i].length,
+						.column = 3,
+						.row = i
+					}
+				};
+
+			}
+			renderer_update_draw_commands(&renderer, &draw_commands, 1);
+
+			renderer_present(&renderer);
 		}
 	}
 

@@ -21,20 +21,22 @@ layout(location = 1) flat in uvec2 in_glyph_offset;
 
 layout(location = 0) out vec4 out_color;
 
-vec3 get_subpixel_contributions(vec2 weight, uint top_left, uint top_right, uint bot_left, uint bot_right) {
-	if(top_left == 0 && top_right == 0 && bot_left == 0 && bot_right == 0) {
+// The four texels are in order:
+// xyzw, x = top_left, y = top_right, z = bot_left, w = bot_right
+vec3 get_subpixel_contributions(vec2 weight, uvec4 texels) {
+	if(texels == uvec4(0)) {
 		return vec3(0.0);
 	}
 
 	uint64_t rows[] = {
-		(bitfieldExtract(top_left, 0, 4) << 4)  | bitfieldExtract(top_right, 0, 4),
-		(bitfieldExtract(top_left, 4, 4) << 4)  | bitfieldExtract(top_right, 4, 4),
-		(bitfieldExtract(top_left, 8, 4) << 4)  | bitfieldExtract(top_right, 8, 4),
-		(bitfieldExtract(top_left, 12, 4) << 4) | bitfieldExtract(top_right, 12, 4),
-		(bitfieldExtract(bot_left, 0, 4) << 4)  | bitfieldExtract(bot_right, 0, 4),
-		(bitfieldExtract(bot_left, 4, 4) << 4)  | bitfieldExtract(bot_right, 4, 4),
-		(bitfieldExtract(bot_left, 8, 4) << 4)  | bitfieldExtract(bot_right, 8, 4),
-		(bitfieldExtract(bot_left, 12, 4) << 4) | bitfieldExtract(bot_right, 12, 4)
+		(bitfieldExtract(texels.x, 0, 4) << 4)  | bitfieldExtract(texels.y, 0, 4),
+		(bitfieldExtract(texels.x, 4, 4) << 4)  | bitfieldExtract(texels.y, 4, 4),
+		(bitfieldExtract(texels.x, 8, 4) << 4)  | bitfieldExtract(texels.y, 8, 4),
+		(bitfieldExtract(texels.x, 12, 4) << 4) | bitfieldExtract(texels.y, 12, 4),
+		(bitfieldExtract(texels.z, 0, 4) << 4)  | bitfieldExtract(texels.w, 0, 4),
+		(bitfieldExtract(texels.z, 4, 4) << 4)  | bitfieldExtract(texels.w, 4, 4),
+		(bitfieldExtract(texels.z, 8, 4) << 4)  | bitfieldExtract(texels.w, 8, 4),
+		(bitfieldExtract(texels.z, 12, 4) << 4) | bitfieldExtract(texels.w, 12, 4)
 	};
 
 	// Three masks for R, G, B subpixel bit counts
@@ -65,38 +67,22 @@ void main() {
 	uvec4 left_side_texel_values = textureGather(glyph_atlas, (texel_center - vec2(1.0, 0.0)) / pc.glyph_atlas_size);
 	uvec4 right_side_texel_values = textureGather(glyph_atlas, (texel_center + vec2(1.0, 0.0)) / pc.glyph_atlas_size);
 
-	uint left_top_right = left_side_texel_values.z;
-	uint left_top_left = left_side_texel_values.w;
-	uint left_bot_left = left_side_texel_values.x;
-	uint left_bot_right = left_side_texel_values.y;
+	vec3 subpixel_left = get_subpixel_contributions(weight, left_side_texel_values.wzxy);
+	vec3 subpixel_middle = get_subpixel_contributions(weight,
+		uvec4(left_side_texel_values.z, right_side_texel_values.w,
+			  left_side_texel_values.y, right_side_texel_values.x)
+	);
+	vec3 subpixel_right = get_subpixel_contributions(weight, right_side_texel_values.wzxy);
 
-	uint right_top_right = right_side_texel_values.z;
-	uint right_top_left = right_side_texel_values.w;
-	uint right_bot_left = right_side_texel_values.x;
-	uint right_bot_right = right_side_texel_values.y;
+	float R = dot(subpixel_left.yz, vec2(0.11111, 0.22222)) +
+			  dot(subpixel_middle.xyz, vec3(0.33333, 0.22222, 0.11111));
 
-	vec3 subpixel_left = get_subpixel_contributions(weight, left_top_left, left_top_right, left_bot_left, left_bot_right);
-	vec3 subpixel_middle = get_subpixel_contributions(weight, left_top_right, right_top_left, left_bot_right, right_bot_left);
-	vec3 subpixel_right = get_subpixel_contributions(weight, right_top_left, right_top_right, right_bot_left, right_bot_right);
+	float G = subpixel_left.z * 0.11111 + 
+	          dot(subpixel_middle.xyz, vec3(0.22222, 0.33333, 0.22222)) +
+			  subpixel_right.x * 0.11111;
 
-	float R = subpixel_left.y * 0.11111 +
-		subpixel_left.z * 0.22222 +
-		subpixel_middle.x * 0.33333 +
-		subpixel_middle.y * 0.22222 +
-		subpixel_middle.z * 0.11111;
-
-	float G = subpixel_left.z * 0.11111 +
-		subpixel_middle.x * 0.22222 +
-		subpixel_middle.y * 0.33333 +
-		subpixel_middle.z * 0.22222 +
-		subpixel_right.x * 0.11111;
-
-	float B = subpixel_middle.x * 0.11111 +
-		subpixel_middle.y * 0.22222 +
-		subpixel_middle.z * 0.33333 +
-		subpixel_right.x * 0.22222 +
-		subpixel_right.y * 0.11111;
-
+	float B = dot(subpixel_middle.xyz, vec3(0.11111, 0.22222, 0.33333)) +
+			  dot(subpixel_right.xy, vec2(0.22222, 0.11111));
 	vec3 coverage = vec3(R, G, B);
 
 	vec3 text_color = vec3(0.83137, 0.83137, 0.83137);
