@@ -39,3 +39,4 @@ void main() {
 	out_uv = uv_coords[bitfieldExtract(in_vertex.x, 3, 3)]; 
 	out_glyph_offset = uvec2(bitfieldExtract(in_vertex.x, 6, 13), bitfieldExtract(in_vertex.x, 19, 13)); 
 }
+

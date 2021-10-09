@@ -19,12 +19,123 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="dependencies\freetype\src\autofit\autofit.c" />
+    <ClCompile Include="dependencies\freetype\src\base\ftbase.c" />
+    <ClCompile Include="dependencies\freetype\src\base\ftbbox.c" />
+    <ClCompile Include="dependencies\freetype\src\base\ftbitmap.c" />
+    <ClCompile Include="dependencies\freetype\src\base\ftdebug.c" />
+    <ClCompile Include="dependencies\freetype\src\base\ftglyph.c" />
+    <ClCompile Include="dependencies\freetype\src\base\ftinit.c" />
+    <ClCompile Include="dependencies\freetype\src\base\ftsystem.c" />
+    <ClCompile Include="dependencies\freetype\src\gzip\ftgzip.c" />
+    <ClCompile Include="dependencies\freetype\src\psnames\psnames.c" />
+    <ClCompile Include="dependencies\freetype\src\sfnt\sfnt.c" />
+    <ClCompile Include="dependencies\freetype\src\truetype\truetype.c" />
     <ClCompile Include="src\editor\editor.c" />
     <ClCompile Include="src\rendering\glyph_tessellation.c" />
     <ClCompile Include="src\rendering\renderer.c" />
     <ClCompile Include="src\main.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="dependencies\freetype\include\dlg\dlg.h" />
+    <ClInclude Include="dependencies\freetype\include\dlg\output.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\ftconfig.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\ftheader.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\ftmodule.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\ftoption.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\ftstdlib.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\integer-types.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\mac-support.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\config\public-macros.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\freetype.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftadvanc.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftbbox.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftbdf.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftbitmap.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftbzip2.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftcache.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftchapters.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftcid.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftcolor.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftdriver.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\fterrdef.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\fterrors.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftfntfmt.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftgasp.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftglyph.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftgxval.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftgzip.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftimage.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftincrem.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftlcdfil.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftlist.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftlogging.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftlzw.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftmac.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftmm.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftmodapi.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftmoderr.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftotval.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftoutln.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftparams.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftpfr.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftrender.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftsizes.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftsnames.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftstroke.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftsynth.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftsystem.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\fttrigon.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\fttypes.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ftwinfnt.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\autohint.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\cffotypes.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\cfftypes.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\compiler-macros.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftcalc.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftdebug.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftdrv.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftgloadr.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\fthash.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftmemory.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftobjs.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftpsprop.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftrfork.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftserv.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftstream.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\fttrace.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\ftvalid.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\psaux.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\pshints.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svbdf.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svcfftl.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svcid.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svfntfmt.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svgldict.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svgxval.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svkern.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svmetric.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svmm.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svotval.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svpfr.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svpostnm.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svprop.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svpscmap.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svpsinfo.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svsfnt.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svttcmap.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svtteng.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svttglyf.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\services\svwinfnt.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\sfnt.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\t1types.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\tttypes.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\internal\wofftypes.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\t1tables.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\ttnameid.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\tttables.h" />
+    <ClInclude Include="dependencies\freetype\include\freetype\tttags.h" />
+    <ClInclude Include="dependencies\freetype\include\ft2build.h" />
     <ClInclude Include="dependencies\ttfparser\include\ttfparser\ttfparser.h" />
     <ClInclude Include="src\core\common_types.h" />
     <ClInclude Include="src\editor\editor.h" />
@@ -73,13 +184,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -120,7 +231,7 @@
       <PreprocessorDefinitions>FT2_BUILD_LIBRARY;VK_USE_PLATFORM_WIN32_KHR;_CRT_SECURE_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>Default</LanguageStandard>
-      <AdditionalIncludeDirectories>src\;dependencies\ttfparser\include\;$(VULKAN_SDK)\Include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src\;dependencies\freetype\include\;dependencies\ttfparser\include\;$(VULKAN_SDK)\Include\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
     </ClCompile>
     <Link>
@@ -139,7 +250,7 @@
       <PreprocessorDefinitions>FT2_BUILD_LIBRARY;VK_USE_PLATFORM_WIN32_KHR;_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>Default</LanguageStandard>
-      <AdditionalIncludeDirectories>src\;dependencies\ttfparser\include\;$(VULKAN_SDK)\Include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src\;dependencies\freetype\include\;dependencies\ttfparser\include\;$(VULKAN_SDK)\Include\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
     </ClCompile>
     <Link>

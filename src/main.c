@@ -58,7 +58,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 	Renderer renderer = renderer_initialize(hinstance, hwnd);
 
 	Editor editor = editor_initialize();
-	editor_open_file(&editor, "C:/Users/Rasmus/Desktop/Atlas/src/main.c");
+	editor_open_file(&editor, "C:/Users/RM/Desktop/Atlas/src/main.c");
 	
 	MSG msg;
 	while(1) {

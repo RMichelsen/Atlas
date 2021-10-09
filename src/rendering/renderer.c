@@ -799,7 +799,7 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 	Image glyph_atlas = create_image_2d(logical_device.handle, physical_device.memory_properties,
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
-	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 16);
+	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 70);
 
 	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_width);
 	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_height);

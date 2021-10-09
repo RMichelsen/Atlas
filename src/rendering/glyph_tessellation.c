@@ -1,6 +1,9 @@
 #include "glyph_tessellation.h"
 
 #include <windows.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_OUTLINE_H
 
 #include "ttfparser/ttfparser.h"
 
@@ -12,8 +15,13 @@ typedef struct TessellationContext {
 	GlyphPoint last_point;
 } TessellationContext;
 
+static inline float fixed_to_float(signed long x)
+{
+	return (float)x / 64.0f;
+}
+
 // https://members.loria.fr/samuel.hornus/quadratic-arc-length.html
-float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
+static float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 	float Bx = b.x - a.x;
 	float By = b.y - a.y;
 	float Fx = c.x - b.x;
@@ -33,9 +41,9 @@ float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 	return l1 + l2 * l3;
 }
 
-void add_straight_line(GlyphPoint p1, GlyphPoint p2, TessellationContext *context) {
+static void add_straight_line(GlyphPoint p1, GlyphPoint p2, TessellationContext *context) {
 	float length = sqrtf((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
-	u32 number_of_steps = (u32)ceilf(length / 10.0f);
+	u32 number_of_steps = (u32)ceilf(length / 0.8f);
 	float step_fraction = 1.0f / number_of_steps;
 
 	for(u32 i = 0; i < number_of_steps; ++i) {
@@ -59,9 +67,9 @@ void add_straight_line(GlyphPoint p1, GlyphPoint p2, TessellationContext *contex
 	}
 }
 
-void add_quadratic_spline(GlyphPoint p1, GlyphPoint p2, GlyphPoint p3, TessellationContext *context) {
+static void add_quadratic_spline(GlyphPoint p1, GlyphPoint p2, GlyphPoint p3, TessellationContext *context) {
 	float length = get_bezier_arc_length(p1, p2, p3);
-	u32 number_of_steps = (u32)ceilf(length / 10.0f);
+	u32 number_of_steps = (u32)ceilf(length / 0.8f);
 	float step_fraction = 1.0f / number_of_steps;
 
 	for(u32 i = 0; i < number_of_steps; ++i) {
@@ -85,59 +93,64 @@ void add_quadratic_spline(GlyphPoint p1, GlyphPoint p2, GlyphPoint p3, Tessellat
 	}
 }
 
-void outline_move_to(float x, float y, void *data) {
-	TessellationContext *context = (TessellationContext *)data;
+int outline_move_to(const FT_Vector *to, void *user) {
+	TessellationContext *context = (TessellationContext *)user;
+	float x = fixed_to_float(to->x);
+	float y = fixed_to_float(to->y);
 	context->last_point = (GlyphPoint) { x, y };
+	return 0;
 }
-void outline_line_to(float x, float y, void *data) {
-	TessellationContext *context = (TessellationContext *)data;
+int outline_line_to(const FT_Vector* to, void *user) {
+	TessellationContext *context = (TessellationContext *)user;
+	float x = fixed_to_float(to->x);
+	float y = fixed_to_float(to->y);
 	add_straight_line(
 		context->last_point,
 		(GlyphPoint) { x, y },
 		context
 	);
 	context->last_point = (GlyphPoint) { x, y };
+	return 0;
 }
-void outline_quad_to(float x1, float y1, float x, float y, void *user) {
+int outline_conic_to(const FT_Vector* control, const FT_Vector* to, void *user) {
 	TessellationContext *context = (TessellationContext *)user;
+	float cx = fixed_to_float(control->x);
+	float cy = fixed_to_float(control->y);
+	float x = fixed_to_float(to->x);
+	float y = fixed_to_float(to->y);
 	add_quadratic_spline(
 		context->last_point,
-		(GlyphPoint) { x1, y1 },
+		(GlyphPoint) { cx, cy },
 		(GlyphPoint) { x, y },
 		context
 	);
 	context->last_point = (GlyphPoint) { x, y };
+	return 0;
 }
-void outline_curve_to(float x1, float y1, float x2, float y2,
-	float x, float y, void *data) {
+int outline_cubic_to(const FT_Vector* control1, const FT_Vector* control2, 
+	const FT_Vector* to, void *user) {
 	assert(false);
+	return 1;
 }
-void outline_close_path(void *data) {}
 
-static ttfp_outline_builder outline_builder = {
+static FT_Outline_Funcs outline_funcs = {
 	.move_to = outline_move_to,
 	.line_to = outline_line_to,
-	.quad_to = outline_quad_to,
-	.curve_to = outline_curve_to,
-	.close_path = outline_close_path
+	.conic_to = outline_conic_to,
+	.cubic_to = outline_cubic_to
 };
 
 TesselatedGlyphs tessellate_glyphs(const char *path, u32 font_size) {
-	FILE *file = fopen(path, "rb");
-	fseek(file, 0, SEEK_END);
-	u32 file_size = ftell(file);
-	rewind(file);
+	FT_Library freetype_library;
+	FT_Error err = FT_Init_FreeType(&freetype_library);
+	assert(!err);
 
-	void *font_data = malloc(file_size);
-	fread(font_data, 1, file_size, file);
-	fclose(file);
-
-	void *font_face = malloc(ttfp_face_size_of());
-
-	bool ok = ttfp_face_init(font_data, file_size, 0, font_face);
-	assert(ok);
-
-	assert(ttfp_is_monospaced(font_face));
+	FT_Face freetype_face;
+	err = FT_New_Face(freetype_library, "C:/Windows/Fonts/consola.ttf", 0, &freetype_face);
+	assert(!err);
+	
+	err = FT_Set_Char_Size(freetype_face, 0, font_size << 6, 0, 0);
+	assert(!err);
 
 	TessellationContext tessellation_context = {
 		.lines = (GlyphLine *)malloc(MAX_TOTAL_GLYPH_LINES * sizeof(GlyphLine)),
@@ -153,10 +166,11 @@ TesselatedGlyphs tessellate_glyphs(const char *path, u32 font_size) {
 
 		u32 offset = tessellation_context.num_lines;
 
-		ttfp_rect bounding_box = { 0 };
-		ok = ttfp_outline_glyph(font_face, outline_builder, &tessellation_context,
-			ttfp_get_glyph_index(font_face, c), &bounding_box);
-		assert(ok);
+		err = FT_Load_Char(freetype_face, c, FT_LOAD_FORCE_AUTOHINT);
+		assert(!err);
+
+		err = FT_Outline_Decompose(&freetype_face->glyph->outline, &outline_funcs, &tessellation_context);
+		assert(!err);
 
 		glyph_offsets[index] = (GlyphOffset) {
 			.offset = offset,
@@ -164,41 +178,24 @@ TesselatedGlyphs tessellate_glyphs(const char *path, u32 font_size) {
 		};
 	}
 
-	float descent = ttfp_get_descender(font_face);
-	float height = ttfp_get_height(font_face);
-	float ascent = ttfp_get_ascender(font_face);
+	float glyph_width = freetype_face->glyph->linearHoriAdvance / 65536.0f;
+	float glyph_height = (float)(freetype_face->size->metrics.height >> 6);
+	float descender = (float)(freetype_face->size->metrics.descender >> 6);
 
-	float font_scale = font_size * GetDpiForSystem() / (72.0f * ttfp_get_units_per_em(font_face));
-
-	// Ensure that the baseline falls exactly in the middle of a pixel
-	float baseline = ttfp_get_ascender(font_face);
-	float target = ceilf(font_scale * baseline) + 0.5f;
-	font_scale = target / baseline;
-
-	// Adjust lines to match Vulkans coordinate system with downward Y axis and adjusted for descent
 	for(u32 i = 0; i < tessellation_context.num_lines; ++i) {
-		tessellation_context.lines[i].a.y = height - (tessellation_context.lines[i].a.y - descent);
-		tessellation_context.lines[i].b.y = height - (tessellation_context.lines[i].b.y - descent);
-
-		// Scale all lines with the chosen font size
-		tessellation_context.lines[i].a.x *= font_scale;
-		tessellation_context.lines[i].a.y *= font_scale;
-		tessellation_context.lines[i].b.x *= font_scale;
-		tessellation_context.lines[i].b.y *= font_scale;
+		tessellation_context.lines[i].a.y = glyph_height - (tessellation_context.lines[i].a.y - descender);
+		tessellation_context.lines[i].b.y = glyph_height - (tessellation_context.lines[i].b.y - descender);
 	}
-
-	float glyph_width = font_scale * ttfp_get_glyph_hor_advance(font_face, ttfp_get_glyph_index(font_face, (u32)'M'));
-	float glyph_height = font_scale * height;
 
 	GlyphMetrics glyph_metrics = {
 		.glyph_width = glyph_width,
 		.glyph_height = glyph_height,
-		.cell_width = (u32)ceilf(glyph_width) + 1,
-		.cell_height = (u32)ceilf(glyph_height) + 1
+		.cell_width = (u32)ceilf(glyph_width),
+		.cell_height = (u32)ceilf(glyph_height)
 	};
 
-	free(font_data);
-	free(font_face);
+	FT_Done_Face(freetype_face);
+	FT_Done_FreeType(freetype_library);
 
 	return (TesselatedGlyphs) {
 		.lines = tessellation_context.lines,

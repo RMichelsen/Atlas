@@ -54,21 +54,20 @@ void main() {
 		Line l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
 		vec2 p1 = l.p1;
 		vec2 p2 = l.p2;
-		for(uint y = 0; y < 4; ++y) {
-			for(uint x = 0; x < 4; ++x) {
-				vec2 p = pixel_top_left + vec2(0.2) + vec2(x * 0.2, y * 0.2);
-			
-				if(p.y < p2.y && p.y >= p1.y) {
-					float dx = p2.x - p1.x;
-					float dy = p2.y - p1.y;
-					if(dy == 0.0) {
-					   continue;
-					}
-					float line_x = (p.y - p1.y) * (dx / dy) + p1.x;
-					if(p.x > line_x) {
-						uint mask = 1u << (y * 4u + (3u - x));
-						result ^= mask;
-					}
+
+		for(int x = 0; x < 15; ++x) {
+			vec2 p = pixel_top_left + vec2(0.0625, 0.0) + vec2(0.0625, 0.0) * x;
+
+			if(p.y < p2.y && p.y >= p1.y) {
+				float dx = p2.x - p1.x;
+				float dy = p2.y - p1.y;
+				if(dy == 0.0) {
+				   continue;
+				}
+				float line_x = (p.y - p1.y) * (dx / dy) + p1.x;
+				if(p.x > line_x) {
+					uint mask = 1u << x;
+					result ^= mask;
 				}
 			}
 		}
@@ -76,3 +75,4 @@ void main() {
 
 	imageStore(glyph_atlas, ivec2(id.xy), uvec4(result));
 }
+
