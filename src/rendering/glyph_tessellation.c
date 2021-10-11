@@ -13,8 +13,7 @@ typedef struct TessellationContext {
 	GlyphPoint last_point;
 } TessellationContext;
 
-static inline float fixed_to_float(signed long x)
-{
+static inline float fixed_to_float(signed long x) {
 	return (float)x / 64.0f;
 }
 
@@ -32,8 +31,7 @@ static float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 	float F_magn = sqrtf(Fx * Fx + Fy * Fy);
 	float A_magn = sqrtf(Ax * Ax + Ay * Ay);
 
-	if (B_magn == 0.0f || F_magn == 0.0f || A_magn == 0.0f)
-	{
+	if (B_magn == 0.0f || F_magn == 0.0f || A_magn == 0.0f) {
 		return 0.0f;
 	}
 
@@ -41,8 +39,7 @@ static float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 	float l2 = ((B_magn * B_magn) / A_magn) - ((A_dot_B * A_dot_B) / (A_magn * A_magn * A_magn));
 	float l3 = logf(A_magn * F_magn + A_dot_F) - logf(A_magn * B_magn + A_dot_B);
 
-	if (isnan(l3))
-	{
+	if (isnan(l3)) {
 		return 0.0f;
 	}
 
@@ -51,8 +48,6 @@ static float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 
 static void add_straight_line(GlyphPoint p1, GlyphPoint p2, TessellationContext *context) {
     assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
-	//GlyphLine line = p1.y > p2.y ? (GlyphLine) { p1, p2 } : (GlyphLine) { p2, p1 };
-
 	context->lines[context->num_lines++] = p1.y > p2.y ?
 		(GlyphLine) { p1, p2 } : (GlyphLine) { p2, p1 };
 	return;
@@ -131,8 +126,7 @@ static FT_Outline_Funcs outline_funcs = {
 	.cubic_to = outline_cubic_to
 };
 
-int cmp_glyph_lines(const void* l1, const void* l2)
-{
+int cmp_glyph_lines(const void* l1, const void* l2) {
 	float l1y = (*(GlyphLine *)l1).a.y;
 	float l2y = (*(GlyphLine *)l2).a.y;
 	return (l2y > l1y) - (l2y < l1y);

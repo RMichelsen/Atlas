@@ -799,7 +799,7 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 	Image glyph_atlas = create_image_2d(logical_device.handle, physical_device.memory_properties,
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
-	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 40);
+	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 30);
 
 	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_width);
 	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_height);
@@ -842,7 +842,7 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 	VkComputePipelineCreateInfo compute_pipeline_info = {
 		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
 		.stage = shader_stage_info,
-		.layout = pipeline_layout,
+		.layout = pipeline_layout
 	};
 	VkPipeline pipeline;
 	vkCreateComputePipelines(logical_device.handle, NULL, 1, &compute_pipeline_info, NULL, &pipeline);
@@ -1084,7 +1084,6 @@ void renderer_update_draw_commands(Renderer *renderer, DrawCommands *draw_list, 
 							.cell_offset_x = command.text.column + k,
 							.cell_offset_y = command.text.row
 						};
-
 					}
 				}
 			}

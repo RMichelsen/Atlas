@@ -1,8 +1,4 @@
 #version 460
-#extension GL_EXT_shader_explicit_arithmetic_types_int8 : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_float64 : enable
-#extension GL_EXT_control_flow_attributes : enable
 #extension GL_EXT_debug_printf : enable
 
 layout(push_constant) uniform PushConstants {
@@ -21,9 +17,8 @@ layout(location = 1) flat in uvec2 in_glyph_offset;
 
 layout(location = 0) out vec4 out_color;
 
-
 // Three masks for R, G, B subpixel bit counts
-// R = 111110000000000, G = 000001111100000, B = 000000000011111
+// R = 1111000011110000, G = 0011110000111100, B = 0000111100001111
 const uvec3 masks = uvec3(
 	0xF0F0,
 	0x3C3C,
@@ -73,7 +68,7 @@ void main() {
 	vec3 text_color = vec3(0.83137, 0.83137, 0.83137);
 	vec3 bg_color = vec3(0.117647, 0.117647, 0.117647);
 
-	float gamma = 1.8;
+	float gamma = 1.43;
 	vec3 raw_result = mix(pow(bg_color, vec3(gamma)), pow(text_color, vec3(gamma)), vec3(coverage));
 	vec3 gamma_corrected_result = pow(raw_result, vec3(1.0 / gamma));
 	out_color = vec4(gamma_corrected_result, 1.0);

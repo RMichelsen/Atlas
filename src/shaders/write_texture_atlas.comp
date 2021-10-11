@@ -53,7 +53,7 @@ void main() {
 
 	// If the minimum y coordinate of a line segment is above the pixel we can break
 	// no lines will intersect the scanline
-	if(glyph_min_y > pixel_top_left.y + 0.6666) {
+	if(glyph_min_y > pixel_top_left.y + 0.75) {
 		return;
 	}
 
@@ -65,13 +65,13 @@ void main() {
 
 		// If the start of the line segment is below the pixel we can break as no
 		// subsequent lines will intersect the scanline
-		if(p1.y > pixel_top_left.y + 0.6666) {
+		if(p1.y > pixel_top_left.y + 0.75) {
 			break;
 		}
 
 		for(int y = 0; y < 2; ++y) {
             for(int x = 0; x < 8; ++x) {
-                vec2 p = pixel_top_left + vec2(0.1111, 0.3333) + vec2(0.1111, 0.3333) * vec2(x, y);
+                vec2 p = pixel_top_left + vec2(0.1111, 0.25) + vec2(0.1111, 0.5) * vec2(x, y);
 
                 if(p.y < p2.y && p.y >= p1.y) {
                     float dx = p2.x - p1.x;
