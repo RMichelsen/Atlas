@@ -1,5 +1,7 @@
 #pragma once
-#include <core/common_types.h>
+#include "core/common_types.h"
+
+#define LINES_PER_SCROLL 3
 
 typedef struct TextLine {
 	char *content;
@@ -7,7 +9,7 @@ typedef struct TextLine {
 } TextLine;
 
 typedef struct TextView {
-	u32 start_row;
+	u32 start_line;
 } TextView;
 
 typedef struct TextDocument {
@@ -18,5 +20,5 @@ typedef struct TextDocument {
 } TextDocument;
 
 typedef struct Editor {
-	TextDocument main_document;
+	TextDocument active_document;
 } Editor;

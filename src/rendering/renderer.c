@@ -1,8 +1,8 @@
 #include "renderer.h"
+
 #include <vulkan/vulkan.h>
 
 #include "rendering/glyph_tessellation.h"
-#include "rendering/shared_rendering_types.h"
 
 #define GLYPH_ATLAS_SIZE 2048
 
@@ -1057,21 +1057,77 @@ Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 	return renderer;
 }
 
+
+void renderer_destroy(Renderer *renderer) {
+	VkDevice device = renderer->logical_device.handle;
+
+	VK_CHECK(vkDeviceWaitIdle(device));
+
+	for(u32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+		vkDestroySemaphore(device, renderer->image_available_semaphores[i], NULL);
+		vkDestroySemaphore(device, renderer->render_finished_semaphores[i], NULL);
+		vkDestroyFence(device, renderer->fences[i], NULL);
+		vkDestroyFramebuffer(device, renderer->framebuffers[i], NULL);
+	}
+
+	for(u32 i = 0; i < renderer->swapchain.image_count; ++i) {
+		vkDestroyImageView(device, renderer->swapchain.image_views[i], NULL);
+	}
+	vkDestroySwapchainKHR(device, renderer->swapchain.handle, NULL);
+	free(renderer->swapchain.images);
+	free(renderer->swapchain.image_views);
+
+	vkDestroyCommandPool(device, renderer->command_pool, NULL);
+
+	// Destroy rasterization resources
+	vkDestroyDescriptorSetLayout(device, renderer->descriptor_set.layout, NULL);
+	vkDestroyDescriptorPool(device, renderer->descriptor_set.pool, NULL);
+	vkDestroySampler(device, renderer->texture_sampler, NULL);
+	vkDestroyRenderPass(device, renderer->render_pass, NULL);
+	vkDestroyPipelineLayout(device, renderer->graphics_pipeline.layout, NULL);
+	vkDestroyPipeline(device, renderer->graphics_pipeline.handle, NULL);
+	vkDestroyBuffer(device, renderer->vertex_buffer.handle, NULL);
+	vkFreeMemory(device, renderer->vertex_buffer.memory, NULL);
+
+	// Destroy Vulkan glyph resources
+	vkDestroyDescriptorSetLayout(device, renderer->glyph_resources.descriptor_set.layout, NULL);
+	vkDestroyDescriptorPool(device, renderer->glyph_resources.descriptor_set.pool, NULL);
+	vkDestroyImageView(device, renderer->glyph_resources.glyph_atlas.atlas.view, NULL);
+	vkDestroyImage(device, renderer->glyph_resources.glyph_atlas.atlas.handle, NULL);
+	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.atlas.memory, NULL);
+	vkDestroyBuffer(device, renderer->glyph_resources.glyph_atlas.lines_buffer.handle, NULL);
+	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.lines_buffer.memory, NULL);
+	vkDestroyBuffer(device, renderer->glyph_resources.glyph_atlas.offsets_buffer.handle, NULL);
+	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.offsets_buffer.memory, NULL);
+	vkDestroyPipelineLayout(device, renderer->glyph_resources.pipeline.layout, NULL);
+	vkDestroyPipeline(device, renderer->glyph_resources.pipeline.handle, NULL);
+
+	vkDestroyDevice(device, NULL);
+
+#ifndef NDEBUG
+	((PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(renderer->instance,
+		"vkDestroyDebugUtilsMessengerEXT"))(renderer->instance, renderer->debug_messenger, NULL);
+#endif
+	vkDestroySurfaceKHR(renderer->instance, renderer->surface, NULL);
+	vkDestroyInstance(renderer->instance, NULL);
+}
+
 void renderer_resize(Renderer *renderer) {
 	renderer->swapchain = create_swapchain(renderer->hwnd, renderer->surface, renderer->physical_device,
 		renderer->logical_device, &renderer->swapchain);
 }
 
-void renderer_update_draw_commands(Renderer *renderer, DrawCommands *draw_list, u32 num_draw_lists) {
+// Note: this function frees the draw commands once they have been processed!
+void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 num_draw_lists) {
 	renderer->active_vertex_count = 0;
 
 	Vertex *vertex_data = (Vertex *)renderer->vertex_buffer.data;
 
 	u32 glyphs_per_row = GLYPH_ATLAS_SIZE / renderer->glyph_resources.glyph_atlas.metrics.cell_width;
 	for(u32 i = 0; i < num_draw_lists; ++i) {
-		DrawCommands draw_commands = draw_list[i];
-		for(u32 j = 0; j < draw_commands.num_commands; ++j) {
-			DrawCommand command = draw_commands.commands[j];
+		DrawList draw_list = draw_lists[i];
+		for(u32 j = 0; j < draw_list.num_commands; ++j) {
+			DrawCommand command = draw_list.commands[j];
 			if(command.type == DRAW_COMMAND_TEXT) {
 				for(u32 k = 0; k < command.text.length; ++k) {
 					u32 glyph_index = (u32)command.text.content[k] - 0x20;
@@ -1087,7 +1143,31 @@ void renderer_update_draw_commands(Renderer *renderer, DrawCommands *draw_list, 
 					}
 				}
 			}
+			else if(command.type == DRAW_COMMAND_NUMBER) {
+				u32 number = command.number.num;
+
+				u32 digits_in_number = (u32)log10(number) + 1;
+				u32 k = 1;
+				do {
+					u32 glyph_index = 0x30 + (number % 10) - 0x20;
+					for(int h = 0; h < 6; ++h) {
+						vertex_data[renderer->active_vertex_count++] = (Vertex) {
+							.pos = h,
+							.uv = h,
+							.glyph_offset_x = glyph_index % glyphs_per_row,
+							.glyph_offset_y = glyph_index / glyphs_per_row,
+							.cell_offset_x = command.number.column + (digits_in_number - k),
+							.cell_offset_y = command.number.row
+						};
+					}
+
+					number /= 10;
+					++k;
+				} while(number > 0);
+			}
 		}
+
+		free(draw_list.commands);
 	}
 }
 
@@ -1215,57 +1295,8 @@ void renderer_present(Renderer *renderer) {
 	resource_index = (resource_index + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void renderer_destroy(Renderer *renderer) {
-	VkDevice device = renderer->logical_device.handle;
-
-	VK_CHECK(vkDeviceWaitIdle(device));
-
-	for(u32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-		vkDestroySemaphore(device, renderer->image_available_semaphores[i], NULL);
-		vkDestroySemaphore(device, renderer->render_finished_semaphores[i], NULL);
-		vkDestroyFence(device, renderer->fences[i], NULL);
-		vkDestroyFramebuffer(device, renderer->framebuffers[i], NULL);
-	}
-
-	for(u32 i = 0; i < renderer->swapchain.image_count; ++i) {
-		vkDestroyImageView(device, renderer->swapchain.image_views[i], NULL);
-	}
-	vkDestroySwapchainKHR(device, renderer->swapchain.handle, NULL);
-	free(renderer->swapchain.images);
-	free(renderer->swapchain.image_views);
-
-	vkDestroyCommandPool(device, renderer->command_pool, NULL);
-
-	// Destroy rasterization resources
-	vkDestroyDescriptorSetLayout(device, renderer->descriptor_set.layout, NULL);
-	vkDestroyDescriptorPool(device, renderer->descriptor_set.pool, NULL);
-	vkDestroySampler(device, renderer->texture_sampler, NULL);
-	vkDestroyRenderPass(device, renderer->render_pass, NULL);
-	vkDestroyPipelineLayout(device, renderer->graphics_pipeline.layout, NULL);
-	vkDestroyPipeline(device, renderer->graphics_pipeline.handle, NULL);
-	vkDestroyBuffer(device, renderer->vertex_buffer.handle, NULL);
-	vkFreeMemory(device, renderer->vertex_buffer.memory, NULL);
-
-	// Destroy Vulkan glyph resources
-	vkDestroyDescriptorSetLayout(device, renderer->glyph_resources.descriptor_set.layout, NULL);
-	vkDestroyDescriptorPool(device, renderer->glyph_resources.descriptor_set.pool, NULL);
-	vkDestroyImageView(device, renderer->glyph_resources.glyph_atlas.atlas.view, NULL);
-	vkDestroyImage(device, renderer->glyph_resources.glyph_atlas.atlas.handle, NULL);
-	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.atlas.memory, NULL);
-	vkDestroyBuffer(device, renderer->glyph_resources.glyph_atlas.lines_buffer.handle, NULL);
-	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.lines_buffer.memory, NULL);
-	vkDestroyBuffer(device, renderer->glyph_resources.glyph_atlas.offsets_buffer.handle, NULL);
-	vkFreeMemory(device, renderer->glyph_resources.glyph_atlas.offsets_buffer.memory, NULL);
-	vkDestroyPipelineLayout(device, renderer->glyph_resources.pipeline.layout, NULL);
-	vkDestroyPipeline(device, renderer->glyph_resources.pipeline.handle, NULL);
-
-	vkDestroyDevice(device, NULL);
-
-#ifndef NDEBUG
-	((PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(renderer->instance, 
-		"vkDestroyDebugUtilsMessengerEXT"))(renderer->instance, renderer->debug_messenger, NULL);
-#endif
-	vkDestroySurfaceKHR(renderer->instance, renderer->surface, NULL);
-	vkDestroyInstance(renderer->instance, NULL);
+u32 renderer_get_number_of_lines_on_screen(Renderer *renderer) {
+	return (u32)ceilf((float)renderer->swapchain.extent.height / 
+		renderer->glyph_resources.glyph_atlas.metrics.cell_height);
 }
 

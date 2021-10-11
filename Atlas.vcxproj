@@ -135,11 +135,12 @@
     <ClInclude Include="dependencies\freetype\include\freetype\tttags.h" />
     <ClInclude Include="dependencies\freetype\include\ft2build.h" />
     <ClInclude Include="src\core\common_types.h" />
+    <ClInclude Include="src\core\shared_types.h" />
     <ClInclude Include="src\editor\editor.h" />
-    <ClInclude Include="src\editor\shared_editor_types.h" />
+    <ClInclude Include="src\editor\editor_types.h" />
     <ClInclude Include="src\rendering\glyph_tessellation.h" />
     <ClInclude Include="src\rendering\renderer.h" />
-    <ClInclude Include="src\rendering\shared_rendering_types.h" />
+    <ClInclude Include="src\rendering\rendering_types.h" />
   </ItemGroup>
   <ItemGroup>
     <GLSLShader Include="src\shaders\fragment.frag" />

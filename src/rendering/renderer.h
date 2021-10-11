@@ -1,6 +1,8 @@
 #pragma once
-#include "rendering/shared_rendering_types.h"
 #include <vulkan/vulkan.h>
+
+#include "core/shared_types.h"
+#include "rendering/rendering_types.h"
 
 #define MAX_FRAMES_IN_FLIGHT 3
 
@@ -106,8 +108,11 @@ typedef struct Renderer {
 } Renderer;
 
 Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd);
-void renderer_resize(Renderer *renderer);
-void renderer_update_draw_commands(Renderer *renderer, DrawCommands *draw_list, u32 num_draw_lists);
-void renderer_present(Renderer *renderer);
 void renderer_destroy(Renderer *renderer);
+
+void renderer_resize(Renderer *renderer);
+void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 num_draw_lists);
+void renderer_present(Renderer *renderer);
+
+u32 renderer_get_number_of_lines_on_screen(Renderer *renderer);
 

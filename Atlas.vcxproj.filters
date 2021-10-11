@@ -71,7 +71,7 @@
     <ClInclude Include="src\rendering\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\rendering\shared_rendering_types.h">
+    <ClInclude Include="src\rendering\rendering_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\rendering\glyph_tessellation.h">
@@ -80,7 +80,7 @@
     <ClInclude Include="src\editor\editor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\editor\shared_editor_types.h">
+    <ClInclude Include="src\editor\editor_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dependencies\freetype\include\freetype\config\ftconfig.h">
@@ -372,6 +372,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dependencies\freetype\include\ft2build.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\shared_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
