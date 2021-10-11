@@ -51,7 +51,10 @@ static float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 
 static void add_straight_line(GlyphPoint p1, GlyphPoint p2, TessellationContext *context) {
     assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
-    context->lines[context->num_lines++] = (GlyphLine) { p1, p2 };
+	//GlyphLine line = p1.y > p2.y ? (GlyphLine) { p1, p2 } : (GlyphLine) { p2, p1 };
+
+	context->lines[context->num_lines++] = p1.y > p2.y ?
+		(GlyphLine) { p1, p2 } : (GlyphLine) { p2, p1 };
 	return;
 }
 
@@ -183,14 +186,24 @@ TesselatedGlyphs tessellate_glyphs(const char *font_path, u32 font_size) {
 	float glyph_height = (float)(freetype_face->size->metrics.height >> 6);
 	float descender = (float)(freetype_face->size->metrics.descender >> 6);
 
-	for(u32 i = 0; i < tessellation_context.num_lines; ++i) {
-		tessellation_context.lines[i].a.y = glyph_height - (tessellation_context.lines[i].a.y - descender);
-		tessellation_context.lines[i].b.y = glyph_height - (tessellation_context.lines[i].b.y - descender);
-
-		if (tessellation_context.lines[i].a.y > tessellation_context.lines[i].b.y) {
-			GlyphPoint tmp = tessellation_context.lines[i].a;
-			tessellation_context.lines[i].a = tessellation_context.lines[i].b;
-			tessellation_context.lines[i].b = tmp;
+	// Pre-rasterization pass to adjust coordinates to be +Y down
+	// and to find the minimum y coordinate so the glyph atlas can take
+	// an early out in case a pixel is strictly above the glyph outlines.
+	for (u32 c = 0x21; c <= 0x7E; ++c) {
+		u32 index = c - 0x20;
+		u32 offset = glyph_offsets[index].offset;
+		float min_y = glyph_height;
+		for (u32 i = 0; i < glyph_offsets[index].num_lines; ++i) {
+			tessellation_context.lines[offset + i].a.y = 
+				glyph_height - (tessellation_context.lines[offset + i].a.y - descender);
+			tessellation_context.lines[offset + i].b.y = 
+				glyph_height - (tessellation_context.lines[offset + i].b.y - descender);
+			if (tessellation_context.lines[offset + i].a.y < min_y) {
+				min_y = tessellation_context.lines[offset + i].a.y;
+			}
+			if (tessellation_context.lines[offset + i].b.y < min_y) {
+				min_y = tessellation_context.lines[offset + i].b.y;
+			}
 		}
 	}
 

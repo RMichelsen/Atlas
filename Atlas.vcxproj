@@ -226,7 +226,7 @@
       <LanguageStandard>Default</LanguageStandard>
       <AdditionalIncludeDirectories>src\;dependencies\freetype\include\;$(VULKAN_SDK)\Include\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
-      <ShowIncludes>true</ShowIncludes>
+      <ShowIncludes>false</ShowIncludes>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -246,7 +246,7 @@
       <LanguageStandard>Default</LanguageStandard>
       <AdditionalIncludeDirectories>src\;dependencies\freetype\include\;$(VULKAN_SDK)\Include\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
-      <ShowIncludes>true</ShowIncludes>
+      <ShowIncludes>false</ShowIncludes>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

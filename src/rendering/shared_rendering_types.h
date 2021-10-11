@@ -16,7 +16,8 @@ typedef struct GlyphLine {
 typedef struct GlyphOffset {
 	u32 offset;
 	u32 num_lines;
-	u64 padding;
+	float min_y;
+	u32 padding;
 } GlyphOffset;
 
 typedef struct GlyphMetrics {
