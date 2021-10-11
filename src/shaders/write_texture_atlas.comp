@@ -3,11 +3,10 @@
 
 #define NUM_PRINTABLE_CHARS 95
 
-struct Line {
+struct GlyphLine {
 	vec2 p1;
 	vec2 p2;
 };
-
 struct GlyphOffset {
 	uint offset;
 	uint num_lines;
@@ -22,8 +21,8 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 layout(binding = 0, r16ui) uniform writeonly uimage2D glyph_atlas;
-layout(binding = 1) readonly buffer Lines {
-	Line data[];
+layout(binding = 1) readonly buffer GlyphLines {
+	GlyphLine data[];
 } glyph_lines;
 layout(binding = 2) readonly buffer GlyphOffsets {
 	GlyphOffset data[];
@@ -51,25 +50,27 @@ void main() {
 
 	uint result = 0;
 	for(int i = 0; i < glyph_offsets.data[char_index].num_lines; ++i) {
-		Line l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
+		GlyphLine l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
 		vec2 p1 = l.p1;
 		vec2 p2 = l.p2;
 
-		for(int x = 0; x < 15; ++x) {
-			vec2 p = pixel_top_left + vec2(0.0625, 0.0) + vec2(0.0625, 0.0) * x;
+		for(int y = 0; y < 2; ++y) {
+            for(int x = 0; x < 8; ++x) {
+                vec2 p = pixel_top_left + vec2(0.1111, 0.25) + vec2(0.1111, 0.5) * vec2(x, y);
 
-			if(p.y < p2.y && p.y >= p1.y) {
-				float dx = p2.x - p1.x;
-				float dy = p2.y - p1.y;
-				if(dy == 0.0) {
-				   continue;
-				}
-				float line_x = (p.y - p1.y) * (dx / dy) + p1.x;
-				if(p.x > line_x) {
-					uint mask = 1u << x;
-					result ^= mask;
-				}
-			}
+                if(p.y < p2.y && p.y >= p1.y) {
+                    float dx = p2.x - p1.x;
+                    float dy = p2.y - p1.y;
+                    if(dy == 0.0) {
+                       continue;
+                    }
+                    float line_x = (p.y - p1.y) * (dx / dy) + p1.x;
+                    if(p.x > line_x) {
+                        uint mask = 1u << ((7u - x) + 8u * y);
+                        result ^= mask;
+                    }
+                }
+            }
 		}
 	}
 

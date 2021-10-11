@@ -77,19 +77,10 @@
     <ClInclude Include="src\rendering\glyph_tessellation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="dependencies\ttfparser\include\ttfparser\ttfparser.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\editor\editor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\editor\shared_editor_types.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="dependencies\freetype\include\dlg\dlg.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="dependencies\freetype\include\dlg\output.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dependencies\freetype\include\freetype\config\ftconfig.h">
@@ -391,12 +382,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="misc\glsl.targets" />
-    <None Include="dependencies\ttfparser\LICENSE-MIT" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="misc\glsl.xml" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="dependencies\ttfparser\lib\ttfparser.lib" />
   </ItemGroup>
 </Project>

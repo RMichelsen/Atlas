@@ -87,9 +87,9 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
 						.row = i
 					}
 				};
-
 			}
 			renderer_update_draw_commands(&renderer, &draw_commands, 1);
+			free(draw_commands.commands);
 
 			renderer_present(&renderer);
 		}

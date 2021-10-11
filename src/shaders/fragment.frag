@@ -25,9 +25,9 @@ layout(location = 0) out vec4 out_color;
 // Three masks for R, G, B subpixel bit counts
 // R = 111110000000000, G = 000001111100000, B = 000000000011111
 const uvec3 masks = uvec3(
-	0x1F,
-	0x3E0,
-	0x7C00
+	0xF0F0,
+	0x3C3C,
+	0x0F0F
 );
 
 vec3 get_subpixel_contributions(uint value) {
@@ -35,19 +35,28 @@ vec3 get_subpixel_contributions(uint value) {
 	float g_bits = float(bitCount(value & masks[1]));
 	float b_bits = float(bitCount(value & masks[2]));
 
-	return vec3(r_bits, g_bits, b_bits) / vec3(5.0);
+	return vec3(r_bits, g_bits, b_bits) / vec3(8.0);
 }
 
 void main() {
+	vec2 abs_pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height);
 	vec2 pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height) + in_glyph_offset * vec2(pc.cell_width, pc.cell_height);
 
-	uint left_value = texture(glyph_atlas, (pixel_origin + vec2(-1.0, 0.0)) / pc.glyph_atlas_size).x;
-	uint middle_value = texture(glyph_atlas, (pixel_origin + vec2(0.0, 0.0)) / pc.glyph_atlas_size).x;
-	uint right_value = texture(glyph_atlas, (pixel_origin + vec2(1.0, 0.0)) / pc.glyph_atlas_size).x;
+	vec3 subpixel_left = vec3(0.0);
+	vec3 subpixel_right = vec3(0.0);
 
-	vec3 subpixel_left = get_subpixel_contributions(left_value);
+	uint middle_value = texture(glyph_atlas, (pixel_origin + vec2(0.0, 0.0)) / pc.glyph_atlas_size).x;
 	vec3 subpixel_middle = get_subpixel_contributions(middle_value);
-	vec3 subpixel_right = get_subpixel_contributions(right_value);
+
+	if(abs_pixel_origin.x > 1.0) {
+        uint left_value = texture(glyph_atlas, (pixel_origin + vec2(-1.0, 0.0)) / pc.glyph_atlas_size).x;
+        subpixel_left = get_subpixel_contributions(left_value);
+	}
+
+	if(abs_pixel_origin.x < (pc.glyph_width - 1.0)) {
+        uint right_value = texture(glyph_atlas, (pixel_origin + vec2(1.0, 0.0)) / pc.glyph_atlas_size).x;
+        subpixel_right = get_subpixel_contributions(right_value);
+	}
 
 	float R = dot(subpixel_left.yz, vec2(0.11111, 0.22222)) +
 			  dot(subpixel_middle.xyz, vec3(0.33333, 0.22222, 0.11111));

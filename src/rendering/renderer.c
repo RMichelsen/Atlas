@@ -799,7 +799,7 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 	Image glyph_atlas = create_image_2d(logical_device.handle, physical_device.memory_properties,
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
-	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 70);
+	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 40);
 
 	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_width);
 	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_height);
@@ -1006,34 +1006,6 @@ void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph_resour
 	end_one_time_command_buffer(logical_device, command_buffer, command_pool);
 }
 
-//void add_string(const char *str, MappedBuffer vertex_buffer, GlyphResources *glyph_resources) {
-//	u64 size = strlen(str) * sizeof(Vertex) * 6;
-//	Vertex *vertices = (Vertex *)malloc(size);
-//	u32 offset = 0;
-//
-//	u32 glyphs_per_row = GLYPH_ATLAS_SIZE / glyph_resources->glyph_push_constants.cell_width;
-//
-//	for(int i = 0; i < strlen(str); ++i) {
-//		u32 glyph_number = (u32)str[i] - 0x20;
-//
-//		vertices[offset++] = (Vertex) { .pos = 0, .uv = 0, .glyph_offset_x = glyph_number % glyphs_per_row,
-//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-//		vertices[offset++] = (Vertex) { .pos = 1, .uv = 1, .glyph_offset_x = glyph_number % glyphs_per_row,
-//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-//		vertices[offset++] = (Vertex) { .pos = 2, .uv = 2, .glyph_offset_x = glyph_number % glyphs_per_row,
-//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-//		vertices[offset++] = (Vertex) { .pos = 3, .uv = 3, .glyph_offset_x = glyph_number % glyphs_per_row,
-//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-//		vertices[offset++] = (Vertex) { .pos = 4, .uv = 4, .glyph_offset_x = glyph_number % glyphs_per_row,
-//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-//		vertices[offset++] = (Vertex) { .pos = 5, .uv = 5, .glyph_offset_x = glyph_number % glyphs_per_row,
-//			.glyph_offset_y = glyph_number / glyphs_per_row, .cell_offset_x = (u32)i, .cell_offset_y = 0 };
-//	}
-//
-//	memcpy(vertex_buffer.data, vertices, size);
-//	free(vertices);
-//}
-
 Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 	VkInstance instance = create_instance();
 	VkSurfaceKHR surface = create_surface(instance, hinstance, hwnd);
@@ -1117,8 +1089,6 @@ void renderer_update_draw_commands(Renderer *renderer, DrawCommands *draw_list, 
 				}
 			}
 		}
-
-		free(draw_commands.commands);
 	}
 }
 
