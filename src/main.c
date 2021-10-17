@@ -1,8 +1,14 @@
-#include <windows.h>
+#include "common_types.h"
+#include "shared_types.h"
 
-#include "core/common_types.h"
-#include "editor/editor.h"
-#include "rendering/renderer.h"
+#include <windows.h>
+#include <vulkan/vulkan.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_OUTLINE_H
+
+#include "editor.c"
+#include "renderer.c"
 
 typedef struct WindowProcContext {
     Editor *editor;
@@ -59,8 +65,8 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
     freopen_s(&dummy, "CONOUT$", "w", stdout);
     freopen_s(&dummy, "CONOUT$", "w", stderr);
 
-    const wchar_t *window_class_name = L"Atlas_Class";
-    const wchar_t *window_title = L"Atlas";
+    const char *window_class_name = "Atlas_Class";
+    const char *window_title = "Atlas";
     WNDCLASSEX window_class = {
         .cbSize = sizeof(WNDCLASSEX),
         .style = CS_HREDRAW | CS_VREDRAW,
@@ -99,7 +105,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
     };
     SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)&window_proc_context);
 
-    editor_open_file(&editor, "C:/Users/RM/Desktop/Atlas/src/main.c");
+    editor_open_file(&editor, "C:/Users/Rasmus/Desktop/Atlas/src/main.c");
     
     MSG msg;
     uint32_t previous_width = 0, previous_height = 0;

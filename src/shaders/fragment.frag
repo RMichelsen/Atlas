@@ -1,5 +1,4 @@
 #version 460
-#extension GL_EXT_debug_printf : enable
 
 layout(push_constant) uniform PushConstants {
 	vec2 display_size;

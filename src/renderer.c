@@ -1,15 +1,19 @@
 #include "renderer.h"
 
-#include <vulkan/vulkan.h>
-
-#include "rendering/glyph_tessellation.h"
-
 #define GLYPH_ATLAS_SIZE 2048
+#define MAX_TOTAL_GLYPH_LINES 65536
+#define NUM_PRINTABLE_CHARS 95
 
 #define VK_CHECK(x) if((x) != VK_SUCCESS) { 			\
 	assert(false); 										\
 	printf("Vulkan error: %s:%i", __FILE__, __LINE__); 	\
 }
+
+typedef struct TessellationContext {
+	GlyphLine *lines;
+	u32 num_lines;
+	GlyphPoint last_point;
+} TessellationContext;
 
 typedef struct GraphicsPushConstants {
 	float display_size[2];
@@ -42,12 +46,11 @@ const char *INSTANCE_EXTENSIONS[] = {
 	VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 };
 const char *DEVICE_EXTENSIONS[] = {
-	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME
+	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
 #ifndef NDEBUG
-VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(
+static VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
 	VkDebugUtilsMessageTypeFlagsEXT message_type,
 	const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
@@ -56,7 +59,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(
 	return VK_FALSE;
 }
 
-VkDebugUtilsMessengerEXT create_debug_messenger(VkInstance instance) {
+static VkDebugUtilsMessengerEXT create_debug_messenger(VkInstance instance) {
 	VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_info = {
 		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 		.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -75,7 +78,7 @@ VkDebugUtilsMessengerEXT create_debug_messenger(VkInstance instance) {
 }
 #endif
 
-VkInstance create_instance() {
+static VkInstance create_instance() {
 	VkInstanceCreateInfo instance_info = {
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 		.pNext = &(VkValidationFeaturesEXT) {
@@ -87,7 +90,7 @@ VkInstance create_instance() {
 		},
 		.pApplicationInfo = &(VkApplicationInfo) {
 			.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-			.apiVersion = VK_API_VERSION_1_2
+			.apiVersion = VK_API_VERSION_1_1
 		},
 #ifndef NDEBUG
 		.enabledLayerCount = _countof(LAYERS),
@@ -102,7 +105,7 @@ VkInstance create_instance() {
 	return instance;
 }
 
-VkSurfaceKHR create_surface(VkInstance instance, HINSTANCE h_instance, HWND hwnd) {
+static VkSurfaceKHR create_surface(VkInstance instance, HINSTANCE h_instance, HWND hwnd) {
 	VkWin32SurfaceCreateInfoKHR win32_surface_info = {
 		.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 		.hinstance = h_instance,
@@ -114,7 +117,7 @@ VkSurfaceKHR create_surface(VkInstance instance, HINSTANCE h_instance, HWND hwnd
 	return surface;
 }
 
-PhysicalDevice create_physical_device(VkInstance instance, VkSurfaceKHR surface) {
+static PhysicalDevice create_physical_device(VkInstance instance, VkSurfaceKHR surface) {
 	u32 device_count = 0;
 	vkEnumeratePhysicalDevices(instance, &device_count, NULL);
 	assert(device_count > 0 && "No Vulkan 1.2 capable devices found");
@@ -184,7 +187,7 @@ PhysicalDevice create_physical_device(VkInstance instance, VkSurfaceKHR surface)
 	};
 }
 
-LogicalDevice create_logical_device(PhysicalDevice physical_device) {
+static LogicalDevice create_logical_device(PhysicalDevice physical_device) {
 	VkDeviceQueueCreateInfo device_queue_infos[] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -234,7 +237,7 @@ LogicalDevice create_logical_device(PhysicalDevice physical_device) {
 	};
 }
 
-VkCommandPool create_command_pool(PhysicalDevice physical_device, LogicalDevice logical_device) {
+static VkCommandPool create_command_pool(PhysicalDevice physical_device, LogicalDevice logical_device) {
 	VkCommandPoolCreateInfo command_pool_info = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
@@ -246,7 +249,7 @@ VkCommandPool create_command_pool(PhysicalDevice physical_device, LogicalDevice 
 	return command_pool;
 }
 
-Swapchain create_swapchain(HWND hwnd, VkSurfaceKHR surface, PhysicalDevice physical_device,
+static Swapchain create_swapchain(HWND hwnd, VkSurfaceKHR surface, PhysicalDevice physical_device,
 	LogicalDevice logical_device, Swapchain *old_swapchain) {
 	VK_CHECK(vkDeviceWaitIdle(logical_device.handle));
 
@@ -335,7 +338,7 @@ Swapchain create_swapchain(HWND hwnd, VkSurfaceKHR surface, PhysicalDevice physi
 	};
 }
 
-void initialize_frame_resources(Renderer *renderer) {
+static void initialize_frame_resources(Renderer *renderer) {
 	VkSemaphoreCreateInfo semaphore_info = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
 	};
@@ -359,7 +362,7 @@ void initialize_frame_resources(Renderer *renderer) {
 	}
 }
 
-VkRenderPass create_render_pass(LogicalDevice logical_device, Swapchain swapchain) {
+static VkRenderPass create_render_pass(LogicalDevice logical_device, Swapchain swapchain) {
 	VkRenderPassCreateInfo render_pass_info = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 		.attachmentCount = 1,
@@ -399,11 +402,10 @@ VkRenderPass create_render_pass(LogicalDevice logical_device, Swapchain swapchai
 	return render_pass;
 }
 
-VkShaderModule create_shader_module(VkDevice device, ShaderType shader_type, const wchar_t *shader_source) {
-	wchar_t path[MAX_PATH + 1] = { 0 };
-	wcscat_s(path, MAX_PATH + 1, L"shaders/");
-	wcscat_s(path, MAX_PATH + 1, shader_source);
-	wcscat_s(path, MAX_PATH + 1, L".spv");
+static VkShaderModule create_shader_module(VkDevice device, ShaderType shader_type, const char *shader_source) {
+	char path[MAX_PATH + 1] = { 0 };
+	strcat_s(path, MAX_PATH + 1, shader_source);
+	strcat_s(path, MAX_PATH + 1, ".spv");
 
 	HANDLE file = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	assert(file != INVALID_HANDLE_VALUE);
@@ -433,7 +435,7 @@ VkShaderModule create_shader_module(VkDevice device, ShaderType shader_type, con
 }
 
 
-Pipeline create_rasterization_pipeline(VkInstance instance, LogicalDevice logical_device,
+static Pipeline create_rasterization_pipeline(VkInstance instance, LogicalDevice logical_device,
 	Swapchain swapchain, VkRenderPass render_pass,
 	DescriptorSet descriptor_set) {
 
@@ -455,13 +457,13 @@ Pipeline create_rasterization_pipeline(VkInstance instance, LogicalDevice logica
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
-			.module = create_shader_module(logical_device.handle, SHADER_TYPE_VERTEX, L"vertex.vert"),
+			.module = create_shader_module(logical_device.handle, SHADER_TYPE_VERTEX, "vertex.vert"),
 			.pName = "main"
 		},
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-			.module = create_shader_module(logical_device.handle, SHADER_TYPE_FRAGMENT, L"fragment.frag"),
+			.module = create_shader_module(logical_device.handle, SHADER_TYPE_FRAGMENT, "fragment.frag"),
 			.pName = "main"
 		},
 	};
@@ -546,7 +548,7 @@ Pipeline create_rasterization_pipeline(VkInstance instance, LogicalDevice logica
 	};
 }
 
-VkCommandBuffer start_one_time_command_buffer(LogicalDevice logical_device, VkCommandPool command_pool) {
+static VkCommandBuffer start_one_time_command_buffer(LogicalDevice logical_device, VkCommandPool command_pool) {
 	VkCommandBufferAllocateInfo command_buffer_allocate_info = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = command_pool,
@@ -566,7 +568,7 @@ VkCommandBuffer start_one_time_command_buffer(LogicalDevice logical_device, VkCo
 	return command_buffer;
 }
 
-void transition_glyph_image(LogicalDevice logical_device, VkCommandBuffer command_buffer, Image image) {
+static void transition_glyph_image(LogicalDevice logical_device, VkCommandBuffer command_buffer, Image image) {
 	VkImageMemoryBarrier memory_barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 		.srcAccessMask = 0,
@@ -587,7 +589,7 @@ void transition_glyph_image(LogicalDevice logical_device, VkCommandBuffer comman
 
 }
 
-void end_one_time_command_buffer(LogicalDevice logical_device, VkCommandBuffer command_buffer,
+static void end_one_time_command_buffer(LogicalDevice logical_device, VkCommandBuffer command_buffer,
 	VkCommandPool command_pool) {
 	VK_CHECK(vkEndCommandBuffer(command_buffer));
 
@@ -611,7 +613,7 @@ void end_one_time_command_buffer(LogicalDevice logical_device, VkCommandBuffer c
 }
 
 // Function from Vulkan spec 1.0.183
-static inline u32 find_memory_type_index(VkPhysicalDeviceMemoryProperties memory_properties,
+static u32 find_memory_type_index(VkPhysicalDeviceMemoryProperties memory_properties,
 	u32 memory_type_bits_requirements,
 	VkMemoryPropertyFlags required_properties) {
 	u32 memory_count = memory_properties.memoryTypeCount;
@@ -631,7 +633,7 @@ static inline u32 find_memory_type_index(VkPhysicalDeviceMemoryProperties memory
 	return UINT32_MAX;
 }
 
-VkDeviceMemory allocate_memory(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
+static VkDeviceMemory allocate_memory(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
 	VkDeviceSize size, u32 memory_type_bits_requirements,
 	VkMemoryPropertyFlags memory_property_flags) {
 	VkMemoryAllocateInfo memory_allocate_info = {
@@ -646,11 +648,11 @@ VkDeviceMemory allocate_memory(VkDevice device, VkPhysicalDeviceMemoryProperties
 	return memory;
 }
 
-inline u64 align_up(u64 value, u64 alignment) {
+static u64 align_up(u64 value, u64 alignment) {
 	return ((value + alignment - 1) / alignment) * alignment;
 }
 
-Image create_image_2d(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
+static Image create_image_2d(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
 	u32 width, u32 height, VkFormat format) {
 	VkImageCreateInfo image_info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -706,7 +708,7 @@ Image create_image_2d(VkDevice device, VkPhysicalDeviceMemoryProperties memory_p
 	};
 }
 
-MappedBuffer create_mapped_buffer(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
+static MappedBuffer create_mapped_buffer(VkDevice device, VkPhysicalDeviceMemoryProperties memory_properties,
 	VkBufferUsageFlags usage, u64 size) {
 	VkBufferCreateInfo buffer_info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -736,7 +738,214 @@ MappedBuffer create_mapped_buffer(VkDevice device, VkPhysicalDeviceMemoryPropert
 	};
 }
 
-GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDevice physical_device,
+static float fixed_to_float(signed long x) {
+	return (float)x / 64.0f;
+}
+
+// https://members.loria.fr/samuel.hornus/quadratic-arc-length.html
+static float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
+	float Bx = b.x - a.x;
+	float By = b.y - a.y;
+	float Fx = c.x - b.x;
+	float Fy = c.y - b.y;
+	float Ax = Fx - Bx;
+	float Ay = Fy - By;
+	float A_dot_B = Ax * Bx + Ay * By;
+	float A_dot_F = Ax * Fx + Ay * Fy;
+	float B_magn = sqrtf(Bx * Bx + By * By);
+	float F_magn = sqrtf(Fx * Fx + Fy * Fy);
+	float A_magn = sqrtf(Ax * Ax + Ay * Ay);
+
+	if (B_magn == 0.0f || F_magn == 0.0f || A_magn == 0.0f) {
+		return 0.0f;
+	}
+
+	float l1 = (F_magn * A_dot_F - B_magn * A_dot_B) / (A_magn * A_magn);
+	float l2 = ((B_magn * B_magn) / A_magn) - ((A_dot_B * A_dot_B) / (A_magn * A_magn * A_magn));
+	float l3 = logf(A_magn * F_magn + A_dot_F) - logf(A_magn * B_magn + A_dot_B);
+
+	if (isnan(l3)) {
+		return 0.0f;
+	}
+
+	return l1 + l2 * l3;
+}
+
+static void add_straight_line(GlyphPoint p1, GlyphPoint p2, TessellationContext *context) {
+    assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
+	context->lines[context->num_lines++] = p1.y > p2.y ?
+		(GlyphLine) { p1, p2 } : (GlyphLine) { p2, p1 };
+	return;
+}
+
+static void add_quadratic_spline(GlyphPoint p1, GlyphPoint p2, GlyphPoint p3, TessellationContext *context) {
+	if ((p1.x == p2.x && p2.x == p3.x) || (p1.y == p2.y && p2.y == p3.y)) {
+		add_straight_line(p1, p3, context);
+		return;
+	}
+
+	float length = get_bezier_arc_length(p1, p2, p3);
+	u32 number_of_steps = length > 0.0f ? (u32)ceilf(length / 0.5f) : 25;
+	float step_fraction = 1.0f / number_of_steps;
+
+	for(u32 i = 0; i < number_of_steps; ++i) {
+		float t1 = i * step_fraction;
+		float t2 = (i + 1) * step_fraction;
+		float ax = (1 - t1) * ((1 - t1) * p1.x + t1 * p2.x) + t1 * ((1 - t1) * p2.x + t1 * p3.x);
+		float ay = (1 - t1) * ((1 - t1) * p1.y + t1 * p2.y) + t1 * ((1 - t1) * p2.y + t1 * p3.y);
+		float bx = (1 - t2) * ((1 - t2) * p1.x + t2 * p2.x) + t2 * ((1 - t2) * p2.x + t2 * p3.x);
+		float by = (1 - t2) * ((1 - t2) * p1.y + t2 * p2.y) + t2 * ((1 - t2) * p2.y + t2 * p3.y);
+
+		assert(context->num_lines < MAX_TOTAL_GLYPH_LINES);
+		context->lines[context->num_lines++] =
+			ay > by ? (GlyphLine) { { ax, ay }, { bx, by } } :
+			(GlyphLine) { { bx, by }, { ax, ay }
+		};
+	}
+}
+
+static int outline_move_to(const FT_Vector *to, void *user) {
+	TessellationContext *context = (TessellationContext *)user;
+	float x = fixed_to_float(to->x);
+	float y = fixed_to_float(to->y);
+	context->last_point = (GlyphPoint) { x, y };
+	return 0;
+}
+static int outline_line_to(const FT_Vector* to, void *user) {
+	TessellationContext *context = (TessellationContext *)user;
+	float x = fixed_to_float(to->x);
+	float y = fixed_to_float(to->y);
+	add_straight_line(
+		context->last_point,
+		(GlyphPoint) { x, y },
+		context
+	);
+	context->last_point = (GlyphPoint) { x, y };
+	return 0;
+}
+static int outline_conic_to(const FT_Vector* control, const FT_Vector* to, void *user) {
+	TessellationContext *context = (TessellationContext *)user;
+	float cx = fixed_to_float(control->x);
+	float cy = fixed_to_float(control->y);
+	float x = fixed_to_float(to->x);
+	float y = fixed_to_float(to->y);
+	add_quadratic_spline(
+		context->last_point,
+		(GlyphPoint) { cx, cy },
+		(GlyphPoint) { x, y },
+		context
+	);
+	context->last_point = (GlyphPoint) { x, y };
+	return 0;
+}
+static int outline_cubic_to(const FT_Vector* control1, const FT_Vector* control2, 
+	const FT_Vector* to, void *user) {
+	assert(false);
+	return 1;
+}
+
+static FT_Outline_Funcs outline_funcs = {
+	.move_to = outline_move_to,
+	.line_to = outline_line_to,
+	.conic_to = outline_conic_to,
+	.cubic_to = outline_cubic_to
+};
+
+static int cmp_glyph_lines(const void* l1, const void* l2) {
+	float l1y = (*(GlyphLine *)l1).a.y;
+	float l2y = (*(GlyphLine *)l2).a.y;
+	return (l2y > l1y) - (l2y < l1y);
+}
+
+static TessellatedGlyphs tessellate_glyphs(const char *font_path, u32 font_size) {
+	FT_Library freetype_library;
+	FT_Error err = FT_Init_FreeType(&freetype_library);
+	assert(!err);
+
+	FT_Face freetype_face;
+	err = FT_New_Face(freetype_library, font_path, 0, &freetype_face);
+	assert(!err);
+
+	// TODO: Support variable .ttf fonts with overlapping outlines.
+	// https://github.com/microsoft/cascadia-code/issues/350
+
+	err = FT_Set_Char_Size(freetype_face, 0, font_size << 6, 0, 0);
+	assert(!err);
+
+	TessellationContext tessellation_context = {
+		.lines = (GlyphLine *)malloc(MAX_TOTAL_GLYPH_LINES * sizeof(GlyphLine)),
+		.num_lines = 0
+	};
+	GlyphOffset *glyph_offsets = (GlyphOffset *)malloc(NUM_PRINTABLE_CHARS * sizeof(GlyphOffset));
+
+	// For the space character an empty entry is fine
+	glyph_offsets[0] = (GlyphOffset) { 0 };
+
+	for(u32 c = 0x21; c <= 0x7E; ++c) {
+		u32 index = c - 0x20;
+
+		u32 offset = tessellation_context.num_lines;
+
+		err = FT_Load_Char(freetype_face, c, FT_LOAD_TARGET_LIGHT);
+		assert(!err);
+
+		err = FT_Outline_Decompose(&freetype_face->glyph->outline, &outline_funcs, &tessellation_context);
+		assert(!err);
+
+		u32 num_lines_in_glyph = tessellation_context.num_lines - offset;
+		qsort(&tessellation_context.lines[offset], num_lines_in_glyph, sizeof(GlyphLine), cmp_glyph_lines);
+
+		glyph_offsets[index] = (GlyphOffset) {
+			.offset = offset,
+			.num_lines = tessellation_context.num_lines - offset
+		};
+	}
+
+	float glyph_width = freetype_face->glyph->linearHoriAdvance / 65536.0f;
+	float glyph_height = (float)(freetype_face->size->metrics.height >> 6);
+	float descender = (float)(freetype_face->size->metrics.descender >> 6);
+
+	// Pre-rasterization pass to adjust coordinates to be +Y down
+	// and to find the minimum y coordinate so the glyph atlas can take
+	// an early out in case a pixel is strictly above the glyph outlines.
+	for (u32 c = 0x21; c <= 0x7E; ++c) {
+		u32 index = c - 0x20;
+		u32 offset = glyph_offsets[index].offset;
+		float min_y = glyph_height;
+		for (u32 i = 0; i < glyph_offsets[index].num_lines; ++i) {
+			tessellation_context.lines[offset + i].a.y = 
+				glyph_height - (tessellation_context.lines[offset + i].a.y - descender);
+			tessellation_context.lines[offset + i].b.y = 
+				glyph_height - (tessellation_context.lines[offset + i].b.y - descender);
+			if (tessellation_context.lines[offset + i].a.y < min_y) {
+				min_y = tessellation_context.lines[offset + i].a.y;
+			}
+			if (tessellation_context.lines[offset + i].b.y < min_y) {
+				min_y = tessellation_context.lines[offset + i].b.y;
+			}
+		}
+	}
+
+	GlyphMetrics glyph_metrics = {
+		.glyph_width = glyph_width,
+		.glyph_height = glyph_height,
+		.cell_width = (u32)ceilf(glyph_width) + 1,
+		.cell_height = (u32)ceilf(glyph_height) + 1
+	};
+
+	FT_Done_Face(freetype_face);
+	FT_Done_FreeType(freetype_library);
+
+	return (TessellatedGlyphs) {
+		.lines = tessellation_context.lines,
+		.num_lines = tessellation_context.num_lines,
+		.glyph_offsets = glyph_offsets,
+		.num_glyphs = NUM_PRINTABLE_CHARS,
+		.metrics = glyph_metrics
+	};
+}
+
+static GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDevice physical_device,
 	LogicalDevice logical_device) {
 	VkDescriptorPoolSize pool_sizes[] = {
 		{
@@ -799,24 +1008,24 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 	Image glyph_atlas = create_image_2d(logical_device.handle, physical_device.memory_properties,
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
-	TesselatedGlyphs tesselated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 30);
+	TessellatedGlyphs tessellated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 60);
 
-	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_width);
-	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tesselated_glyphs.metrics.glyph_height);
+	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tessellated_glyphs.metrics.glyph_width);
+	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tessellated_glyphs.metrics.glyph_height);
 	assert(chars_per_row * chars_per_col >= NUM_PRINTABLE_CHARS);
 
 	MappedBuffer glyph_lines_buffer = create_mapped_buffer(logical_device.handle,
 		physical_device.memory_properties,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-		tesselated_glyphs.num_lines * sizeof(GlyphLine));
-	memcpy(glyph_lines_buffer.data, tesselated_glyphs.lines, tesselated_glyphs.num_lines * sizeof(GlyphLine));
-	free(tesselated_glyphs.lines);
+		tessellated_glyphs.num_lines * sizeof(GlyphLine));
+	memcpy(glyph_lines_buffer.data, tessellated_glyphs.lines, tessellated_glyphs.num_lines * sizeof(GlyphLine));
+	free(tessellated_glyphs.lines);
 	MappedBuffer glyph_offsets_buffer = create_mapped_buffer(logical_device.handle,
 		physical_device.memory_properties,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-		tesselated_glyphs.num_glyphs * sizeof(GlyphOffset));
-	memcpy(glyph_offsets_buffer.data, tesselated_glyphs.glyph_offsets, tesselated_glyphs.num_glyphs * sizeof(GlyphOffset));
-	free(tesselated_glyphs.glyph_offsets);
+		tessellated_glyphs.num_glyphs * sizeof(GlyphOffset));
+	memcpy(glyph_offsets_buffer.data, tessellated_glyphs.glyph_offsets, tessellated_glyphs.num_glyphs * sizeof(GlyphOffset));
+	free(tessellated_glyphs.glyph_offsets);
 
 	VkPipelineLayoutCreateInfo layout_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -835,7 +1044,7 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 	VkPipelineShaderStageCreateInfo shader_stage_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_COMPUTE_BIT,
-		.module = create_shader_module(logical_device.handle, SHADER_TYPE_COMPUTE, L"write_texture_atlas.comp"),
+		.module = create_shader_module(logical_device.handle, SHADER_TYPE_COMPUTE, "write_texture_atlas.comp"),
 		.pName = "main"
 	};
 
@@ -861,14 +1070,14 @@ GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDe
 		},
 		.glyph_atlas = {
 			.atlas = glyph_atlas,
-			.metrics = tesselated_glyphs.metrics,
+			.metrics = tessellated_glyphs.metrics,
 			.lines_buffer = glyph_lines_buffer,
 			.offsets_buffer = glyph_offsets_buffer
 		}
 	};
 }
 
-VkSampler create_texture_sampler(LogicalDevice logical_device) {
+static VkSampler create_texture_sampler(LogicalDevice logical_device) {
 	VkSamplerCreateInfo sampler_info = {
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 		.magFilter = VK_FILTER_NEAREST,
@@ -883,7 +1092,7 @@ VkSampler create_texture_sampler(LogicalDevice logical_device) {
 	return texture_sampler;
 }
 
-DescriptorSet create_descriptor_set(LogicalDevice logical_device) {
+static DescriptorSet create_descriptor_set(LogicalDevice logical_device) {
 	VkDescriptorPoolCreateInfo descriptor_pool_info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.maxSets = 1,
@@ -927,7 +1136,7 @@ DescriptorSet create_descriptor_set(LogicalDevice logical_device) {
 	};
 }
 
-void write_descriptors(LogicalDevice logical_device, GlyphResources *glyph_resources,
+static void write_descriptors(LogicalDevice logical_device, GlyphResources *glyph_resources,
 	DescriptorSet descriptor_set, VkSampler texture_sampler) {
 	VkWriteDescriptorSet write_descriptor_sets[] = {
 		{
@@ -983,7 +1192,7 @@ void write_descriptors(LogicalDevice logical_device, GlyphResources *glyph_resou
 	vkUpdateDescriptorSets(logical_device.handle, 1, &write_descriptor_set, 0, NULL);
 }
 
-void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph_resources, VkCommandPool command_pool) {
+static void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph_resources, VkCommandPool command_pool) {
 	VkCommandBuffer command_buffer = start_one_time_command_buffer(logical_device, command_pool);
 
 	transition_glyph_image(logical_device, command_buffer, glyph_resources->glyph_atlas.atlas);
@@ -1006,7 +1215,7 @@ void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph_resour
 	end_one_time_command_buffer(logical_device, command_buffer, command_pool);
 }
 
-Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
+static Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 	VkInstance instance = create_instance();
 	VkSurfaceKHR surface = create_surface(instance, hinstance, hwnd);
 
@@ -1058,7 +1267,7 @@ Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 }
 
 
-void renderer_destroy(Renderer *renderer) {
+static void renderer_destroy(Renderer *renderer) {
 	VkDevice device = renderer->logical_device.handle;
 
 	VK_CHECK(vkDeviceWaitIdle(device));
@@ -1112,13 +1321,13 @@ void renderer_destroy(Renderer *renderer) {
 	vkDestroyInstance(renderer->instance, NULL);
 }
 
-void renderer_resize(Renderer *renderer) {
+static void renderer_resize(Renderer *renderer) {
 	renderer->swapchain = create_swapchain(renderer->hwnd, renderer->surface, renderer->physical_device,
 		renderer->logical_device, &renderer->swapchain);
 }
 
 // Note: this function frees the draw commands once they have been processed!
-void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 num_draw_lists) {
+static void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 num_draw_lists) {
 	renderer->active_vertex_count = 0;
 
 	Vertex *vertex_data = (Vertex *)renderer->vertex_buffer.data;
@@ -1171,7 +1380,7 @@ void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 nu
 	}
 }
 
-void renderer_present(Renderer *renderer) {
+static void renderer_present(Renderer *renderer) {
 	static u32 resource_index = 0;
 
 	VK_CHECK(vkWaitForFences(renderer->logical_device.handle, 1, &renderer->fences[resource_index], VK_TRUE, UINT64_MAX));

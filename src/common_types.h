@@ -1,4 +1,5 @@
 #pragma once
+
 #include <assert.h>
 #include <malloc.h>
 #include <math.h>

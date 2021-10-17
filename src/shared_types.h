@@ -1,5 +1,4 @@
 #pragma once
-#include "core/common_types.h"
 
 typedef enum DrawCommandType {
 	DRAW_COMMAND_TEXT,

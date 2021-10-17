@@ -1,12 +1,12 @@
 #include "editor.h"
 
-i32 clamp(i32 x, i32 low, i32 high) {
+static i32 clamp(i32 x, i32 low, i32 high) {
 	if(x < low) return low;
 	if(x > high) return high;
 	return x;
 }
 
-Editor editor_initialize() {
+static Editor editor_initialize() {
 	return (Editor) {
 		.active_document = {
 			.lines = NULL,
@@ -18,7 +18,7 @@ Editor editor_initialize() {
 	};
 }
 
-void editor_open_file(Editor *editor, const char *path) {
+static void editor_open_file(Editor *editor, const char *path) {
 	FILE *file = fopen(path, "r");
 
 	editor->active_document.lines = malloc(sizeof(TextLine) * 1024);
@@ -45,14 +45,14 @@ void editor_open_file(Editor *editor, const char *path) {
 	fclose(file);
 }
 
-void editor_destroy(Editor *editor) {
+static void editor_destroy(Editor *editor) {
 	for(u32 i = 0; i < editor->active_document.num_lines; ++i) {
 		free(editor->active_document.lines[i].content);
 	}
 	free(editor->active_document.lines);
 }
 
-void editor_scroll_down(Editor* editor, i32 line_delta) {
+static void editor_scroll_down(Editor* editor, i32 line_delta) {
 	editor->active_document.view.start_line = clamp(
 		editor->active_document.view.start_line + line_delta,
 		0,
@@ -60,7 +60,7 @@ void editor_scroll_down(Editor* editor, i32 line_delta) {
 	);
 }
 
-DrawList text_document_get_text_draw_list(TextDocument *document, u32 num_lines_on_screen) {
+static DrawList text_document_get_text_draw_list(TextDocument *document, u32 num_lines_on_screen) {
 	u32 start_line = document->view.start_line;
 	u32 end_line = min(start_line + num_lines_on_screen, document->num_lines);
 	u32 line_number_digit_count = (u32)log10(end_line) + 1;
@@ -83,7 +83,7 @@ DrawList text_document_get_text_draw_list(TextDocument *document, u32 num_lines_
 	return draw_list;
 }
 
-DrawList text_document_get_line_number_draw_list(TextDocument *document, u32 num_lines_on_screen) {
+static DrawList text_document_get_line_number_draw_list(TextDocument *document, u32 num_lines_on_screen) {
 	u32 start_line = document->view.start_line;
 	u32 end_line = min(start_line + num_lines_on_screen, document->num_lines);
 	u32 line_number_digit_count = (u32)log10(end_line) + 1;

@@ -1,8 +1,4 @@
 #pragma once
-#include <vulkan/vulkan.h>
-
-#include "core/shared_types.h"
-#include "rendering/rendering_types.h"
 
 #define MAX_FRAMES_IN_FLIGHT 3
 
@@ -53,6 +49,38 @@ typedef struct MappedBuffer {
 	void *data;
 	VkDeviceMemory memory;
 } MappedBuffer;
+
+typedef struct GlyphPoint {
+	float x;
+	float y;
+} GlyphPoint;
+
+typedef struct GlyphLine {
+	GlyphPoint a;
+	GlyphPoint b;
+} GlyphLine;
+
+typedef struct GlyphOffset {
+	u32 offset;
+	u32 num_lines;
+	float min_y;
+	u32 padding;
+} GlyphOffset;
+
+typedef struct GlyphMetrics {
+	float glyph_width;
+	float glyph_height;
+	u32 cell_width;
+	u32 cell_height;
+} GlyphMetrics;
+
+typedef struct TessellatedGlyphs {
+	GlyphLine *lines;
+	u64 num_lines;
+	GlyphOffset *glyph_offsets;
+	u64 num_glyphs;
+	GlyphMetrics metrics;
+} TessellatedGlyphs;
 
 typedef struct GlyphPushConstants {
 	float glyph_width;
@@ -107,12 +135,12 @@ typedef struct Renderer {
 #endif
 } Renderer;
 
-Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd);
-void renderer_destroy(Renderer *renderer);
+static Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd);
+static void renderer_destroy(Renderer *renderer);
 
-void renderer_resize(Renderer *renderer);
-void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 num_draw_lists);
-void renderer_present(Renderer *renderer);
+static void renderer_resize(Renderer *renderer);
+static void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 num_draw_lists);
+static void renderer_present(Renderer *renderer);
 
-u32 renderer_get_number_of_lines_on_screen(Renderer *renderer);
+static u32 renderer_get_number_of_lines_on_screen(Renderer *renderer);
 
