@@ -1,6 +1,6 @@
 @echo off
 setlocal
-call "C:/Program Files (x86)/Microsoft Visual Studio/2022/Preview/VC/Auxiliary/Build/vcvarsall.bat" x64
+call "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Auxiliary/Build/vcvarsall.bat" x64
 
 set RootDirectory=%cd%
 set RootDirectory=%RootDirectory:\=/%

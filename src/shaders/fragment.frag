@@ -16,60 +16,42 @@ layout(location = 1) flat in uvec2 in_glyph_offset;
 
 layout(location = 0) out vec4 out_color;
 
-// Three masks for R, G, B subpixel bit counts
-// R = 1111000011110000, G = 0011110000111100, B = 0000111100001111
-const uvec3 masks = uvec3(
-	0xF0F0,
-	0x3C3C,
-	0x0F0F
-);
-
-vec3 get_subpixel_contributions(uint value) {
-	float r_bits = float(bitCount(value & masks[0]));
-	float g_bits = float(bitCount(value & masks[1]));
-	float b_bits = float(bitCount(value & masks[2]));
-
-	return vec3(r_bits, g_bits, b_bits) / vec3(8.0);
-}
-
 void main() {
 	vec2 abs_pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height);
-	vec2 pixel_origin = in_uv * vec2(pc.glyph_width, pc.glyph_height) + in_glyph_offset * vec2(pc.cell_width, pc.cell_height);
+	vec2 pixel_origin = abs_pixel_origin + in_glyph_offset * vec2(pc.cell_width, pc.cell_height);
 
-	vec3 subpixel_left = vec3(0.0);
-	vec3 subpixel_right = vec3(0.0);
+    uint pixel_xxleft = texture(glyph_atlas, (pixel_origin + vec2(-2.0, 0.0)) / pc.glyph_atlas_size).x;
+    uint pixel_xleft = texture(glyph_atlas, (pixel_origin + vec2(-1.0, 0.0)) / pc.glyph_atlas_size).x;
+    uint pixel_left = texture(glyph_atlas, pixel_origin / pc.glyph_atlas_size).x;
+    uint pixel_middle = texture(glyph_atlas, (pixel_origin + vec2(1.0, 0.0)) / pc.glyph_atlas_size).x;
+    uint pixel_right = texture(glyph_atlas, (pixel_origin + vec2(2.0, 0.0)) / pc.glyph_atlas_size).x;
+    uint pixel_xright = texture(glyph_atlas, (pixel_origin + vec2(3.0, 0.0)) / pc.glyph_atlas_size).x;
+    uint pixel_xxright = texture(glyph_atlas, (pixel_origin + vec2(4.0, 0.0)) / pc.glyph_atlas_size).x;
 
-	uint middle_value = texture(glyph_atlas, (pixel_origin + vec2(0.0, 0.0)) / pc.glyph_atlas_size).x;
-	vec3 subpixel_middle = get_subpixel_contributions(middle_value);
+    float R = (bitCount(pixel_xxleft) * 0.03125 + 
+              bitCount(pixel_xleft) * 0.30078125 +
+              bitCount(pixel_left) * 0.3359375 +
+              bitCount(pixel_middle) * 0.30078125 +
+              bitCount(pixel_right) * 0.03125) / 16.0;
 
-	if(abs_pixel_origin.x > 1.0) {
-        uint left_value = texture(glyph_atlas, (pixel_origin + vec2(-1.0, 0.0)) / pc.glyph_atlas_size).x;
-        subpixel_left = get_subpixel_contributions(left_value);
-	}
+    float G = (bitCount(pixel_xleft) * 0.03125 + 
+              bitCount(pixel_left) * 0.30078125 +
+              bitCount(pixel_middle) * 0.3359375 +
+              bitCount(pixel_right) * 0.30078125 +
+              bitCount(pixel_xright) * 0.03125) / 16.0;
 
-	if(abs_pixel_origin.x < (pc.glyph_width - 1.0)) {
-        uint right_value = texture(glyph_atlas, (pixel_origin + vec2(1.0, 0.0)) / pc.glyph_atlas_size).x;
-        subpixel_right = get_subpixel_contributions(right_value);
-	}
+    float B = (bitCount(pixel_left) * 0.03125 + 
+              bitCount(pixel_middle) * 0.30078125 +
+              bitCount(pixel_right) * 0.3359375 +
+              bitCount(pixel_xright) * 0.30078125 +
+              bitCount(pixel_xxright) * 0.03125) / 16.0;
 
-	float R = dot(subpixel_left.yz, vec2(0.11111, 0.22222)) +
-			  dot(subpixel_middle.xyz, vec3(0.33333, 0.22222, 0.11111));
-
-	float G = subpixel_left.z * 0.11111 + 
-	          dot(subpixel_middle.xyz, vec3(0.22222, 0.33333, 0.22222)) +
-			  subpixel_right.x * 0.11111;
-
-	float B = dot(subpixel_middle.xyz, vec3(0.11111, 0.22222, 0.33333)) +
-			  dot(subpixel_right.xy, vec2(0.22222, 0.11111));
-
+	vec3 text_color = vec3(0.91796875, 0.85546875, 0.6953125);
+	vec3 bg_color = vec3(0.15625, 0.15625, 0.15625);
 	vec3 coverage = vec3(R, G, B);
 
-	vec3 text_color = vec3(0.83137, 0.83137, 0.83137);
-	vec3 bg_color = vec3(0.117647, 0.117647, 0.117647);
-
-	float gamma = 1.43;
-	vec3 raw_result = mix(pow(bg_color, vec3(gamma)), pow(text_color, vec3(gamma)), vec3(coverage));
-	vec3 gamma_corrected_result = pow(raw_result, vec3(1.0 / gamma));
-	out_color = vec4(gamma_corrected_result, 1.0);
+    // Gamma correct
+    vec3 color = pow(text_color, vec3(1.43)) * coverage + pow(bg_color, vec3(1.43)) * (1.0 - coverage);
+    out_color = vec4(pow(color, vec3(1.0 / 1.43)), 1.0);
 }
 

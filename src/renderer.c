@@ -869,7 +869,7 @@ static TessellatedGlyphs tessellate_glyphs(const char *font_path, u32 font_size)
 	// TODO: Support variable .ttf fonts with overlapping outlines.
 	// https://github.com/microsoft/cascadia-code/issues/350
 
-	err = FT_Set_Char_Size(freetype_face, 0, font_size << 6, 0, 0);
+	err = FT_Set_Char_Size(freetype_face, (font_size << 6) * 3, font_size << 6, 0, 0);
 	assert(!err);
 
 	TessellationContext tessellation_context = {
@@ -886,7 +886,7 @@ static TessellatedGlyphs tessellate_glyphs(const char *font_path, u32 font_size)
 
 		u32 offset = tessellation_context.num_lines;
 
-		err = FT_Load_Char(freetype_face, c, FT_LOAD_TARGET_LIGHT);
+		err = FT_Load_Char(freetype_face, c, FT_LOAD_TARGET_NORMAL);
 		assert(!err);
 
 		err = FT_Outline_Decompose(&freetype_face->glyph->outline, &outline_funcs, &tessellation_context);
@@ -1008,7 +1008,7 @@ static GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, Phy
 	Image glyph_atlas = create_image_2d(logical_device.handle, physical_device.memory_properties,
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
-	TessellatedGlyphs tessellated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 60);
+	TessellatedGlyphs tessellated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 26);
 
 	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tessellated_glyphs.metrics.glyph_width);
 	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tessellated_glyphs.metrics.glyph_height);
@@ -1420,7 +1420,7 @@ static void renderer_present(Renderer *renderer) {
 		NULL, &renderer->framebuffers[resource_index]));
 
 	VkClearValue clear_values[] = {
-		{.color = {.float32 = { 0.117647f, 0.117647f, 0.117647f, 1.0f } } }
+		{.color = {.float32 = { 0.15625f, 0.15625f, 0.15625f, 1.0f } } }
 	};
 
 	VkRenderPassBeginInfo render_pass_begin_info = {
