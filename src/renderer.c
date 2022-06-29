@@ -267,7 +267,7 @@ static Swapchain create_swapchain(Window window, VkSurfaceKHR surface, PhysicalD
 
 #ifdef _WIN32
 	RECT client_rect;
-	GetClientRect(hwnd, &client_rect);
+	GetClientRect(window.handle, &client_rect);
 	VkExtent2D extent = {
 		.width = (u32)client_rect.right,
 		.height = (u32)client_rect.bottom
@@ -427,11 +427,11 @@ static VkRenderPass create_render_pass(LogicalDevice logical_device, Swapchain s
 }
 
 static VkShaderModule create_shader_module(VkDevice device, ShaderType shader_type, const char *shader_source) {
-	char path[PATH_MAX + 1] = { 0 };
+	char path[FILENAME_MAX] = { 0 };
 	strcat(path, shader_source);
 	strcat(path, ".spv");
     
-    FILE *file = fopen(path, "r");
+    FILE *file = fopen(path, "rb");
     assert(file);
 
     fseek(file, 0, SEEK_END);

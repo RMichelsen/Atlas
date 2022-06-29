@@ -23,7 +23,7 @@ target_sources(FreeType PRIVATE
     ${CMAKE_SOURCE_DIR}/dependencies/freetype/src/truetype/truetype.c
 )
 
-add_executable(Atlas)
+add_executable(Atlas WIN32)
 target_include_directories(Atlas PRIVATE
     ${CMAKE_SOURCE_DIR}/dependencies/freetype/include
 )
@@ -47,8 +47,6 @@ target_precompile_headers(Atlas PRIVATE
     <freetype/freetype.h>
     <freetype/ftoutln.h>
     <vulkan/vulkan.h>
-    <xcb/xcb.h>
-    <xcb/xproto.h>
 )
 
 if(WIN32)
@@ -85,7 +83,6 @@ foreach(S ${Shaders})
     add_custom_command(
         TARGET Atlas POST_BUILD
         COMMAND Vulkan::glslangValidator ${CMAKE_SOURCE_DIR}/src/shaders/${S} 
-        -g -V --target-env vulkan1.1 -o 
-        $<TARGET_FILE_DIR:Atlas>/${S}.spv
+        -g -V --target-env vulkan1.1 -o $<TARGET_FILE_DIR:Atlas>/${S}.spv
     )
 endforeach()

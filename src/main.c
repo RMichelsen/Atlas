@@ -93,14 +93,14 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
     ShowWindow(hwnd, cmd_show);
 
     Editor editor = editor_initialize();
-    Renderer renderer = renderer_initialize(hinstance, hwnd);
+    Renderer renderer = renderer_initialize((Window) { .handle = hwnd, .instance = hinstance });
     WindowProcContext window_proc_context = {
         .editor = &editor,
         .renderer = &renderer
     };
     SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)&window_proc_context);
 
-    editor_open_file(&editor, "C:/Users/Rasmus/Desktop/Atlas/src/main.c");
+    editor_open_file(&editor, "C:/Users/RasmusMichelsen/Desktop/Atlas/src/main.c");
     
     MSG msg;
     uint32_t previous_width = 0, previous_height = 0;
@@ -146,11 +146,7 @@ int main(int argc, char **argv) {
     Renderer renderer = renderer_initialize((Window) { .handle = window, .connection = connection });
 
     Editor editor = editor_initialize();
-#ifdef _WIN32
-    editor_open_file(&editor, "C:/Users/RasmusMichelsen/Desktop/Atlas/src/main.c");
-#else
     editor_open_file(&editor, "/home/rm/Atlas/src/main.c");
-#endif
 
     for (;;) {
         DrawList draw_lists[] = {
