@@ -62,7 +62,7 @@ static void editor_scroll_down(Editor* editor, i32 line_delta) {
 
 static DrawList text_document_get_text_draw_list(TextDocument *document, u32 num_lines_on_screen) {
 	u32 start_line = document->view.start_line;
-	u32 end_line = min(start_line + num_lines_on_screen, document->num_lines);
+	u32 end_line = MIN(start_line + num_lines_on_screen, document->num_lines);
 	u32 line_number_digit_count = (u32)log10(end_line) + 1;
 
 	DrawList draw_list;
@@ -85,7 +85,7 @@ static DrawList text_document_get_text_draw_list(TextDocument *document, u32 num
 
 static DrawList text_document_get_line_number_draw_list(TextDocument *document, u32 num_lines_on_screen) {
 	u32 start_line = document->view.start_line;
-	u32 end_line = min(start_line + num_lines_on_screen, document->num_lines);
+	u32 end_line = MIN(start_line + num_lines_on_screen, document->num_lines);
 	u32 line_number_digit_count = (u32)log10(end_line) + 1;
 
 	DrawList draw_list;

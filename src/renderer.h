@@ -103,8 +103,20 @@ typedef struct GlyphResources {
 	GlyphAtlas glyph_atlas;
 } GlyphResources;
 
+#ifdef _WIN32
+typedef struct Window {
+    HWND handle;
+    HINSTANCE instance;
+} Window;
+#else
+typedef struct Window {
+    xcb_window_t handle;
+    xcb_connection_t *connection;
+} Window;
+#endif
+
 typedef struct Renderer {
-	HWND hwnd;
+	Window window;
 
 	VkInstance instance;
 	VkSurfaceKHR surface;
@@ -135,9 +147,9 @@ typedef struct Renderer {
 #endif
 } Renderer;
 
-static Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd);
-static void renderer_destroy(Renderer *renderer);
+static Renderer renderer_initialize(Window window);
 
+static void renderer_destroy(Renderer *renderer);
 static void renderer_resize(Renderer *renderer);
 static void renderer_update_draw_lists(Renderer *renderer, DrawList *draw_lists, u32 num_draw_lists);
 static void renderer_present(Renderer *renderer);

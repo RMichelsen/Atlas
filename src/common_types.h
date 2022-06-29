@@ -1,13 +1,5 @@
 #pragma once
 
-#include <assert.h>
-#include <malloc.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -27,4 +19,8 @@ typedef uint64_t u64;
     QueryPerformanceCounter(&t2); \
     elapsedTime=(float)(t2.QuadPart-t1.QuadPart)/frequency.QuadPart; \
     printf("Elapsed Time: %fms\n", elapsedTime * 1000.0f);
+
+#define ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
 

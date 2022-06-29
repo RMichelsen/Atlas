@@ -1,12 +1,6 @@
 #include "common_types.h"
 #include "shared_types.h"
 
-#include <windows.h>
-#include <vulkan/vulkan.h>
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_OUTLINE_H
-
 #include "editor.c"
 #include "renderer.c"
 
@@ -15,6 +9,7 @@ typedef struct WindowProcContext {
     Renderer *renderer;
 } WindowProcContext;
 
+#ifdef _WIN32
 LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     WindowProcContext *context = (WindowProcContext *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if (!context) {
@@ -120,3 +115,60 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE prev_hinstance, PWSTR cmd_lin
     DestroyWindow(hwnd);
     return 0;
 }
+#else
+int main(int argc, char **argv) {
+    xcb_connection_t *connection = xcb_connect(NULL, NULL);
+    xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(connection)).data;
+
+    uint32_t values[2] = { screen->black_pixel, 0 };
+
+    xcb_window_t window = xcb_generate_id(connection);
+
+    xcb_create_window(
+        connection,
+        XCB_COPY_FROM_PARENT,
+        window,
+        screen->root,
+        0, 0,
+        1920, 1080,
+        0,
+        XCB_WINDOW_CLASS_INPUT_OUTPUT,
+        screen->root_visual,
+        XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK,
+        values
+    );
+
+    xcb_map_window(connection, window);
+    xcb_flush(connection);
+
+    Window w;
+
+    Renderer renderer = renderer_initialize((Window) { .handle = window, .connection = connection });
+
+    Editor editor = editor_initialize();
+#ifdef _WIN32
+    editor_open_file(&editor, "C:/Users/RasmusMichelsen/Desktop/Atlas/src/main.c");
+#else
+    editor_open_file(&editor, "/home/rm/Atlas/src/main.c");
+#endif
+
+    for (;;) {
+        DrawList draw_lists[] = {
+            text_document_get_text_draw_list(
+                &editor.active_document,
+                renderer_get_number_of_lines_on_screen(&renderer)
+            ),
+            text_document_get_line_number_draw_list(
+                &editor.active_document,
+                renderer_get_number_of_lines_on_screen(&renderer)
+            )
+        };
+
+        renderer_update_draw_lists(&renderer, draw_lists, ARRAY_LENGTH(draw_lists));
+        renderer_present(&renderer);
+    }
+
+    xcb_destroy_window(connection, window);
+    return 0;
+}
+#endif

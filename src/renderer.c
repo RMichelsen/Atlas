@@ -42,7 +42,11 @@ typedef enum ShaderType {
 const char *LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
 const char *INSTANCE_EXTENSIONS[] = {
 	VK_KHR_SURFACE_EXTENSION_NAME,
+#ifdef _WIN32
 	VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+#else
+	VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+#endif
 	VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 };
 const char *DEVICE_EXTENSIONS[] = {
@@ -93,10 +97,10 @@ static VkInstance create_instance() {
 			.apiVersion = VK_API_VERSION_1_1
 		},
 #ifndef NDEBUG
-		.enabledLayerCount = _countof(LAYERS),
+		.enabledLayerCount = ARRAY_LENGTH(LAYERS),
 		.ppEnabledLayerNames = LAYERS,
 #endif
-		.enabledExtensionCount = _countof(INSTANCE_EXTENSIONS),
+		.enabledExtensionCount = ARRAY_LENGTH(INSTANCE_EXTENSIONS),
 		.ppEnabledExtensionNames = INSTANCE_EXTENSIONS
 	};
 
@@ -105,15 +109,23 @@ static VkInstance create_instance() {
 	return instance;
 }
 
-static VkSurfaceKHR create_surface(VkInstance instance, HINSTANCE h_instance, HWND hwnd) {
+static VkSurfaceKHR create_surface(VkInstance instance, Window window) {
+	VkSurfaceKHR surface;
+#ifdef _WIN32
 	VkWin32SurfaceCreateInfoKHR win32_surface_info = {
 		.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-		.hinstance = h_instance,
-		.hwnd = hwnd
+		.hinstance = window.instance,
+		.hwnd = window.handle
 	};
-
-	VkSurfaceKHR surface;
 	VK_CHECK(vkCreateWin32SurfaceKHR(instance, &win32_surface_info, NULL, &surface));
+#else
+    VkXcbSurfaceCreateInfoKHR xcb_surface_info = {
+        .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+        .connection = window.connection,
+        .window = window.handle
+    };
+    VK_CHECK(vkCreateXcbSurfaceKHR(instance, &xcb_surface_info, NULL, &surface));
+#endif
 	return surface;
 }
 
@@ -208,13 +220,13 @@ static LogicalDevice create_logical_device(PhysicalDevice physical_device) {
 		.pNext = NULL,
 		.queueCreateInfoCount =
 			physical_device.graphics_family_idx == physical_device.compute_family_idx ?
-			1 : _countof(device_queue_infos),
+			1 : ARRAY_LENGTH(device_queue_infos),
 		.pQueueCreateInfos = device_queue_infos,
 #ifndef NDEBUG
-		.enabledLayerCount = _countof(LAYERS),
+		.enabledLayerCount = ARRAY_LENGTH(LAYERS),
 		.ppEnabledLayerNames = LAYERS,
 #endif
-		.enabledExtensionCount = _countof(DEVICE_EXTENSIONS),
+		.enabledExtensionCount = ARRAY_LENGTH(DEVICE_EXTENSIONS),
 		.ppEnabledExtensionNames = DEVICE_EXTENSIONS,
 		.pEnabledFeatures = &(VkPhysicalDeviceFeatures) {
 			.shaderStorageImageWriteWithoutFormat = VK_TRUE,
@@ -249,16 +261,28 @@ static VkCommandPool create_command_pool(PhysicalDevice physical_device, Logical
 	return command_pool;
 }
 
-static Swapchain create_swapchain(HWND hwnd, VkSurfaceKHR surface, PhysicalDevice physical_device,
+static Swapchain create_swapchain(Window window, VkSurfaceKHR surface, PhysicalDevice physical_device,
 	LogicalDevice logical_device, Swapchain *old_swapchain) {
 	VK_CHECK(vkDeviceWaitIdle(logical_device.handle));
 
+#ifdef _WIN32
 	RECT client_rect;
 	GetClientRect(hwnd, &client_rect);
 	VkExtent2D extent = {
 		.width = (u32)client_rect.right,
 		.height = (u32)client_rect.bottom
 	};
+#else
+    xcb_get_geometry_reply_t *geometry = xcb_get_geometry_reply(
+        window.connection, 
+        xcb_get_geometry(window.connection, window.handle),
+        NULL
+    );
+	VkExtent2D extent = {
+		.width = (u32)geometry->width,
+		.height = (u32)geometry->height
+	};
+#endif
 
 	u32 desired_image_count = physical_device.surface_capabilities.minImageCount + 1;
 	if(physical_device.surface_capabilities.maxImageCount > 0 &&
@@ -403,23 +427,20 @@ static VkRenderPass create_render_pass(LogicalDevice logical_device, Swapchain s
 }
 
 static VkShaderModule create_shader_module(VkDevice device, ShaderType shader_type, const char *shader_source) {
-	char path[MAX_PATH + 1] = { 0 };
-	strcat_s(path, MAX_PATH + 1, shader_source);
-	strcat_s(path, MAX_PATH + 1, ".spv");
+	char path[PATH_MAX + 1] = { 0 };
+	strcat(path, shader_source);
+	strcat(path, ".spv");
+    
+    FILE *file = fopen(path, "r");
+    assert(file);
 
-	HANDLE file = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	assert(file != INVALID_HANDLE_VALUE);
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);
 
-	DWORD file_size = GetFileSize(file, NULL);
-	assert(file_size != INVALID_FILE_SIZE);
-
-	u32 *bytecode = (u32 *)malloc(file_size);
-
-	DWORD bytes_read;
-	BOOL success = ReadFile(file, bytecode, file_size, &bytes_read, NULL);
-	assert(success);
-
-	CloseHandle(file);
+    void *bytecode = malloc(file_size);
+    fread(bytecode, file_size, 1, file);
+    fclose(file);
 
 	VkShaderModuleCreateInfo shader_module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -470,7 +491,7 @@ static Pipeline create_rasterization_pipeline(VkInstance instance, LogicalDevice
 
 	VkGraphicsPipelineCreateInfo graphics_pipeline_info = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount = _countof(shader_stage_infos),
+		.stageCount = ARRAY_LENGTH(shader_stage_infos),
 		.pStages = shader_stage_infos,
 		.pVertexInputState = &(VkPipelineVertexInputStateCreateInfo) {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -752,9 +773,9 @@ static float get_bezier_arc_length(GlyphPoint a, GlyphPoint b, GlyphPoint c) {
 	float Ay = Fy - By;
 	float A_dot_B = Ax * Bx + Ay * By;
 	float A_dot_F = Ax * Fx + Ay * Fy;
-	float B_magn = sqrtf(Bx * Bx + By * By);
-	float F_magn = sqrtf(Fx * Fx + Fy * Fy);
-	float A_magn = sqrtf(Ax * Ax + Ay * Ay);
+	float B_magn = sqrt(Bx * Bx + By * By);
+	float F_magn = sqrt(Fx * Fx + Fy * Fy);
+	float A_magn = sqrt(Ax * Ax + Ay * Ay);
 
 	if (B_magn == 0.0f || F_magn == 0.0f || A_magn == 0.0f) {
 		return 0.0f;
@@ -785,7 +806,7 @@ static void add_quadratic_spline(GlyphPoint p1, GlyphPoint p2, GlyphPoint p3, Te
 	}
 
 	float length = get_bezier_arc_length(p1, p2, p3);
-	u32 number_of_steps = length > 0.0f ? (u32)ceilf(length / 0.5f) : 25;
+	u32 number_of_steps = length > 0.0f ? (u32)ceil(length / 0.5f) : 25;
 	float step_fraction = 1.0f / number_of_steps;
 
 	for(u32 i = 0; i < number_of_steps; ++i) {
@@ -886,7 +907,7 @@ static TessellatedGlyphs tessellate_glyphs(const char *font_path, u32 font_size)
 
 		u32 offset = tessellation_context.num_lines;
 
-		err = FT_Load_Char(freetype_face, c, FT_LOAD_TARGET_NORMAL);
+		err = FT_Load_Char(freetype_face, c, FT_LOAD_TARGET_LIGHT);
 		assert(!err);
 
 		err = FT_Outline_Decompose(&freetype_face->glyph->outline, &outline_funcs, &tessellation_context);
@@ -929,8 +950,8 @@ static TessellatedGlyphs tessellate_glyphs(const char *font_path, u32 font_size)
 	GlyphMetrics glyph_metrics = {
 		.glyph_width = glyph_width,
 		.glyph_height = glyph_height,
-		.cell_width = (u32)ceilf(glyph_width) + 1,
-		.cell_height = (u32)ceilf(glyph_height) + 1
+		.cell_width = (u32)ceil(glyph_width) + 1,
+		.cell_height = (u32)ceil(glyph_height) + 1
 	};
 
 	FT_Done_Face(freetype_face);
@@ -945,8 +966,8 @@ static TessellatedGlyphs tessellate_glyphs(const char *font_path, u32 font_size)
 	};
 }
 
-static GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, PhysicalDevice physical_device,
-	LogicalDevice logical_device) {
+static GlyphResources create_glyph_resources(Window window, VkInstance instance, 
+    PhysicalDevice physical_device, LogicalDevice logical_device) {
 	VkDescriptorPoolSize pool_sizes[] = {
 		{
 			.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -960,7 +981,7 @@ static GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, Phy
 	VkDescriptorPoolCreateInfo descriptor_pool_info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.maxSets = 1,
-		.poolSizeCount = _countof(pool_sizes),
+		.poolSizeCount = ARRAY_LENGTH(pool_sizes),
 		.pPoolSizes = pool_sizes
 	};
 	VkDescriptorPool descriptor_pool;
@@ -989,7 +1010,7 @@ static GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, Phy
 	};
 	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = _countof(descriptor_set_layout_bindings),
+		.bindingCount = ARRAY_LENGTH(descriptor_set_layout_bindings),
 		.pBindings = descriptor_set_layout_bindings
 	};
 	VkDescriptorSetLayout descriptor_set_layout;
@@ -1008,7 +1029,11 @@ static GlyphResources create_glyph_resources(HWND hwnd, VkInstance instance, Phy
 	Image glyph_atlas = create_image_2d(logical_device.handle, physical_device.memory_properties,
 		GLYPH_ATLAS_SIZE, GLYPH_ATLAS_SIZE, VK_FORMAT_R16_UINT);
 
+#ifdef _WIN32
 	TessellatedGlyphs tessellated_glyphs = tessellate_glyphs("C:/Windows/Fonts/consola.ttf", 26);
+#else
+	TessellatedGlyphs tessellated_glyphs = tessellate_glyphs("/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf", 30);
+#endif
 
 	u32 chars_per_row = (u32)(GLYPH_ATLAS_SIZE / tessellated_glyphs.metrics.glyph_width);
 	u32 chars_per_col = (u32)(GLYPH_ATLAS_SIZE / tessellated_glyphs.metrics.glyph_height);
@@ -1174,7 +1199,7 @@ static void write_descriptors(LogicalDevice logical_device, GlyphResources *glyp
 		}
 	};
 
-	vkUpdateDescriptorSets(logical_device.handle, _countof(write_descriptor_sets),
+	vkUpdateDescriptorSets(logical_device.handle, ARRAY_LENGTH(write_descriptor_sets),
 		write_descriptor_sets, 0, NULL);
 
 	VkWriteDescriptorSet write_descriptor_set = {
@@ -1215,9 +1240,9 @@ static void rasterize_glyphs(LogicalDevice logical_device, GlyphResources *glyph
 	end_one_time_command_buffer(logical_device, command_buffer, command_pool);
 }
 
-static Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
+static Renderer renderer_initialize(Window window) {
 	VkInstance instance = create_instance();
-	VkSurfaceKHR surface = create_surface(instance, hinstance, hwnd);
+	VkSurfaceKHR surface = create_surface(instance, window);
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT debug_messenger = create_debug_messenger(instance);
@@ -1225,14 +1250,14 @@ static Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 
 	PhysicalDevice physical_device = create_physical_device(instance, surface);
 	LogicalDevice logical_device = create_logical_device(physical_device);
-	Swapchain swapchain = create_swapchain(hwnd, surface, physical_device, logical_device, NULL);
+	Swapchain swapchain = create_swapchain(window, surface, physical_device, logical_device, NULL);
 	VkCommandPool command_pool = create_command_pool(physical_device, logical_device);
 	VkSampler texture_sampler = create_texture_sampler(logical_device);
 	VkRenderPass render_pass = create_render_pass(logical_device, swapchain);
 	DescriptorSet descriptor_set = create_descriptor_set(logical_device);
 	Pipeline graphics_pipeline = create_rasterization_pipeline(instance, logical_device, swapchain,
 		render_pass, descriptor_set);
-	GlyphResources glyph_resources = create_glyph_resources(hwnd, instance, physical_device, logical_device);
+	GlyphResources glyph_resources = create_glyph_resources(window, instance, physical_device, logical_device);
 
 	write_descriptors(logical_device, &glyph_resources, descriptor_set, texture_sampler);
 	rasterize_glyphs(logical_device, &glyph_resources, command_pool);
@@ -1243,7 +1268,7 @@ static Renderer renderer_initialize(HINSTANCE hinstance, HWND hwnd) {
 		sizeof(Vertex) * 1024 * 1024 * 64);
 
 	Renderer renderer = {
-		.hwnd = hwnd,
+		.window = window,
 		.instance = instance,
 		.surface = surface,
 		.logical_device = logical_device,
@@ -1322,7 +1347,7 @@ static void renderer_destroy(Renderer *renderer) {
 }
 
 static void renderer_resize(Renderer *renderer) {
-	renderer->swapchain = create_swapchain(renderer->hwnd, renderer->surface, renderer->physical_device,
+	renderer->swapchain = create_swapchain(renderer->window, renderer->surface, renderer->physical_device,
 		renderer->logical_device, &renderer->swapchain);
 }
 
@@ -1433,7 +1458,7 @@ static void renderer_present(Renderer *renderer) {
 				.height = renderer->swapchain.extent.height
 			}
 		},
-		.clearValueCount = _countof(clear_values),
+		.clearValueCount = ARRAY_LENGTH(clear_values),
 		.pClearValues = clear_values
 	};
 	vkCmdBeginRenderPass(renderer->command_buffers[resource_index],
@@ -1505,7 +1530,7 @@ static void renderer_present(Renderer *renderer) {
 }
 
 u32 renderer_get_number_of_lines_on_screen(Renderer *renderer) {
-	return (u32)ceilf((float)renderer->swapchain.extent.height / 
+	return (u32)ceil((float)renderer->swapchain.extent.height / 
 		renderer->glyph_resources.glyph_atlas.metrics.cell_height);
 }
 
