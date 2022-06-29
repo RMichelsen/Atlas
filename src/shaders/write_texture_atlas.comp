@@ -3,72 +3,72 @@
 #define NUM_PRINTABLE_CHARS 95
 
 struct GlyphLine {
-	vec2 p1;
-	vec2 p2;
+    vec2 p1;
+    vec2 p2;
 };
 struct GlyphOffset {
-	uint offset;
-	uint num_lines;
-	uint min_y;
-	uint padding;
+    uint offset;
+    uint num_lines;
+    uint min_y;
+    uint padding;
 };
 
 layout(push_constant) uniform PushConstants {
-	float glyph_width;
-	float glyph_height;
-	uint cell_width;
-	uint cell_height;
+    float glyph_width;
+    float glyph_height;
+    uint cell_width;
+    uint cell_height;
 } pc;
 
 layout(binding = 0, r16ui) uniform writeonly uimage2D glyph_atlas;
 layout(binding = 1) readonly buffer GlyphLines {
-	GlyphLine data[];
+    GlyphLine data[];
 } glyph_lines;
 layout(binding = 2) readonly buffer GlyphOffsets {
-	GlyphOffset data[];
+    GlyphOffset data[];
 } glyph_offsets;
 
 layout (local_size_x = 1, local_size_y = 1) in;
 void main() {
-	uvec2 id = gl_GlobalInvocationID.xy;
+    uvec2 id = gl_GlobalInvocationID.xy;
 
-	uint num_glyphs_per_row = uint(imageSize(glyph_atlas).x / pc.cell_width);
-	if(id.x > pc.cell_width * num_glyphs_per_row) {
-		return;
-	}
-	uint glyph_row_index = uint(id.x / pc.cell_width);
-	uint glyph_col_index = uint(id.y / pc.cell_height);
-	uint char_index = glyph_col_index * num_glyphs_per_row + glyph_row_index;
-	if(char_index >= NUM_PRINTABLE_CHARS) {
-		return;
-	}
+    uint num_glyphs_per_row = uint(imageSize(glyph_atlas).x / pc.cell_width);
+    if(id.x > pc.cell_width * num_glyphs_per_row) {
+        return;
+    }
+    uint glyph_row_index = uint(id.x / pc.cell_width);
+    uint glyph_col_index = uint(id.y / pc.cell_height);
+    uint char_index = glyph_col_index * num_glyphs_per_row + glyph_row_index;
+    if(char_index >= NUM_PRINTABLE_CHARS) {
+        return;
+    }
 
-	vec2 pixel_top_left = {
-		id.x - pc.cell_width * floor(id.x / pc.cell_width),
-		id.y - pc.cell_height * floor(id.y / pc.cell_height)
-	};
+    vec2 pixel_top_left = {
+        id.x - pc.cell_width * floor(id.x / pc.cell_width),
+        id.y - pc.cell_height * floor(id.y / pc.cell_height)
+    };
 
-	float glyph_min_y = glyph_offsets.data[char_index].min_y;
+    float glyph_min_y = glyph_offsets.data[char_index].min_y;
 
-	// If the minimum y coordinate of a line segment is above the pixel we can break
-	// no lines will intersect the scanline
-	if(glyph_min_y > pixel_top_left.y + 0.75) {
-		return;
-	}
+    // If the minimum y coordinate of a line segment is above the pixel we can break
+    // no lines will intersect the scanline
+    if(glyph_min_y > pixel_top_left.y + 0.75) {
+        return;
+    }
 
-	uint result = 0;
-	for(int i = 0; i < glyph_offsets.data[char_index].num_lines; ++i) {
-		GlyphLine l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
-		vec2 p1 = l.p1;
-		vec2 p2 = l.p2;
+    uint result = 0;
+    for(int i = 0; i < glyph_offsets.data[char_index].num_lines; ++i) {
+        GlyphLine l = glyph_lines.data[glyph_offsets.data[char_index].offset + i];
+        vec2 p1 = l.p1;
+        vec2 p2 = l.p2;
 
-		// If the start of the line segment is below the pixel we can break as no
-		// subsequent lines will intersect the scanline
-		if(p1.y > pixel_top_left.y + 0.75) {
-			break;
-		}
+        // If the start of the line segment is below the pixel we can break as no
+        // subsequent lines will intersect the scanline
+        if(p1.y > pixel_top_left.y + 0.75) {
+            break;
+        }
 
-		for(int y = 0; y < 2; ++y) {
+        for(int y = 0; y < 2; ++y) {
             for(int x = 0; x < 8; ++x) {
                 vec2 p = pixel_top_left + vec2(0.1111, 0.25) + vec2(0.1111, 0.5) * vec2(x, y);
 
@@ -85,9 +85,9 @@ void main() {
                     }
                 }
             }
-		}
-	}
+        }
+    }
 
-	imageStore(glyph_atlas, ivec2(id.xy), uvec4(result));
+    imageStore(glyph_atlas, ivec2(id.xy), uvec4(result));
 }
 
